@@ -4,7 +4,7 @@ import torchvision.transforms as transforms
 
 import os
 
-def MNIST(batch_size):
+def load_MNIST(batch_size):
     """Load MNIST dataset
     Train set of 60000 images. Split into 3 parts:
     - 20000 images for training a labeling model (since generated images don't have labels)
@@ -63,7 +63,7 @@ def MNIST(batch_size):
 
 if __name__ == "__main__":
     # Test MNIST
-    labeling_loader, public_loader, private_loader, test_loader = MNIST(64)
+    labeling_loader, public_loader, private_loader, test_loader = load_MNIST(64)
 
     # Print sizes of each set
     print("Labeling set size:", len(labeling_loader.dataset))

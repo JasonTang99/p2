@@ -14,10 +14,10 @@ class Discriminator(nn.Module):
         self.input_size = input_size
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_sizes[0], bias=False),
-            nn.ReLU(),
+            nn.ReLU(True),
             *list(chain.from_iterable([[
                 nn.Linear(hidden_sizes[i], hidden_sizes[i+1], bias=False), 
-                nn.ReLU()
+                nn.ReLU(True)
             ] for i in range(len(hidden_sizes) - 1)])),
             nn.Linear(hidden_sizes[-1], 1, bias=False),
         )
@@ -86,11 +86,11 @@ class Generator_FC(nn.Module):
 
         self.model = nn.Sequential(
             nn.Linear(nz, hidden_sizes[0], bias=False),
-            nn.ReLU(),
+            nn.ReLU(True),
             nn.BatchNorm1d(hidden_sizes[0]),
             *list(chain.from_iterable([[
                 nn.Linear(hidden_sizes[i-1], hidden_sizes[i], bias=False),
-                nn.ReLU(), 
+                nn.ReLU(True), 
                 nn.BatchNorm1d(hidden_sizes[i])
             ] for i in range(1, len(hidden_sizes))])),
             nn.Linear(hidden_sizes[-1], output_size, bias=False),
@@ -109,7 +109,76 @@ def G_weights_init(m):
         nn.init.constant_(m.bias.data, 0)
 
 
+# Autoencoder
+class Encoder(nn.Module):
+    def __init__(self, latent_size=32):
+        super(Encoder, self).__init__()
+        self.latent_size = latent_size
+        
+        self.model = nn.Sequential(
+            # Convolutional layers
+            nn.Conv2d(1, 8, 3, stride=2, padding=1),
+            nn.BatchNorm2d(8),
+            nn.ReLU(True),
+            nn.Conv2d(8, 16, 3, stride=2, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            nn.Conv2d(16, 32, 3, stride=2, padding=0),
+            nn.ReLU(True),
+            nn.Flatten(),
+            # Linear layers
+            nn.Linear(32*3*3, 96),
+            nn.ReLU(True),
+            nn.Linear(96, self.latent_size),
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+class Decoder(nn.Module):
+    def __init__(self, latent_size=32):
+        super(Decoder, self).__init__()
+        self.latent_size = latent_size
+        
+        self.model = nn.Sequential(
+            # Linear layers
+            nn.Linear(self.latent_size, 96),
+            nn.ReLU(True),
+            nn.Linear(96, 32*3*3),
+            nn.ReLU(True),
+            # Convolutional layers
+            nn.Unflatten(1, (32, 3, 3)),
+            nn.ConvTranspose2d(32, 16, 3, stride=2, padding=0),
+            nn.BatchNorm2d(16),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(16, 8, 3, stride=2, padding=0),
+            nn.BatchNorm2d(8),
+            nn.ReLU(True),
+            nn.ConvTranspose2d(8, 1, 3, stride=2, padding=2, output_padding=1),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
+
 if __name__ == '__main__':
+   
+    # Test Encoder
+    E = Encoder()
+    x = torch.randn(32, 1, 28, 28)
+    print(E(x).shape)
+
+    # Test Decoder
+    D = Decoder()
+    xp = D(E(x))
+    print(xp.shape)
+
+    assert x.shape == xp.shape
+
+    exit()
+
+
     # Test Discriminator
     D = Discriminator(hidden_sizes=[64, 16, 16, 16], input_size=28**2)
     x = torch.randn(1, 28**2)

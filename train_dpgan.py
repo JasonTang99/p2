@@ -7,7 +7,7 @@ from time import time
 
 from utils import generate_run_id, get_input_args, Args
 from models import Discriminator, Generator_MNIST, Weight_Clipper, G_weights_init
-from data import MNIST
+from data import load_MNIST
 
 import torch
 import torch.nn as nn
@@ -181,8 +181,9 @@ def main(args, private=True):
     optimizerD = optim.Adam(netD.parameters(), lr=args.lr, betas=(args.beta1, 0.999))
     optimizerG = optim.Adam(netG.parameters(), lr=args.lr, betas=(args.beta1, 0.999))
 
-    # Setup MNIST dataset
-    train_loader, _ = MNIST(args.batch_size)
+    # Setup MNIST dataset using load_MNIST
+    labeling_loader, public_loader, private_loader, test_loader = load_MNIST(args.batch_size)
+    train_loader = private_loader
 
     if private:
         # Setup Privacy Engine
