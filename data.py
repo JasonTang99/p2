@@ -2,24 +2,77 @@ import torch
 import torchvision
 import torchvision.transforms as transforms
 
+import os
 
 def MNIST(batch_size):
+    """Load MNIST dataset
+    Train set of 60000 images. Split into 3 parts:
+    - 20000 images for training a labeling model (since generated images don't have labels)
+        - 2000 images per class
+    - 40000 images for training a classifier
+        - Odd numbers (20000 images) as a "public" training set
+        - Even numbers (20000 images) as a "private" training set
+
+    Test set of 10000 images. Used for evaluating the downstream classifier.
+    """
+    MNIST_fp = "data/MNIST"
     transform = transforms.ToTensor()
-    train_set = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform)
-    train_loader = torch.utils.data.DataLoader(train_set, batch_size=batch_size, shuffle=True, num_workers=4)
 
     test_set = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transform)
-    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False, num_workers=4)
 
-    return train_loader, test_loader
+    # Check if we need to split
+    if os.path.exists("labeling_set.pt") and os.path.exists("public_set.pt") and os.path.exists("private_set.pt"):
+        # Load from disk
+        labeling_set = torch.load(f"{MNIST_fp}/labeling_set.pt")
+        public_set = torch.load(f"{MNIST_fp}/public_set.pt")
+        private_set = torch.load(f"{MNIST_fp}/private_set.pt")
+    else:
+        # Split train set into 3 parts
+        train_set = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transform)
+
+        generator1 = torch.Generator().manual_seed(42)
+        labeling_set, train_set = torch.utils.data.random_split(train_set, [20000, 40000], generator1)
+        
+        # Separate into classes
+        class_idxs = [[] for _ in range(10)]
+        for i, (_, label) in enumerate(train_set):
+            class_idxs[label].append(i)
+        
+        # Create public (odd) and private (even) sets
+        public_idxs = []
+        private_idxs = []
+        for i in range(5):
+            public_idxs += class_idxs[2*i+1]
+            private_idxs += class_idxs[2*i]
+        public_set = torch.utils.data.Subset(train_set, public_idxs)
+        private_set = torch.utils.data.Subset(train_set, private_idxs)
+
+        # Save so we can use the same split later
+        torch.save(labeling_set, f"{MNIST_fp}/labeling_set.pt")
+        torch.save(public_set, f"{MNIST_fp}/public_set.pt")
+        torch.save(private_set, f"{MNIST_fp}/private_set.pt")
+
+    # Create data loaders
+    labeling_loader = torch.utils.data.DataLoader(labeling_set, batch_size=batch_size, shuffle=True)
+    public_loader = torch.utils.data.DataLoader(public_set, batch_size=batch_size, shuffle=True)
+    private_loader = torch.utils.data.DataLoader(private_set, batch_size=batch_size, shuffle=True)
+    test_loader = torch.utils.data.DataLoader(test_set, batch_size=batch_size, shuffle=False)
+
+    return labeling_loader, public_loader, private_loader, test_loader
 
 
 if __name__ == "__main__":
     # Test MNIST
-    train_loader, test_loader = MNIST(4)
-    for i, data in enumerate(train_loader):
-        inputs, labels = data
-        print(inputs.shape, labels.shape)
-        # print min and max of inputs
-        print(inputs.min(), inputs.max())
-        break
+    labeling_loader, public_loader, private_loader, test_loader = MNIST(64)
+
+    # Print sizes of each set
+    print("Labeling set size:", len(labeling_loader.dataset))
+    print("Public set size:", len(public_loader.dataset))
+    print("Private set size:", len(private_loader.dataset))
+    print("Test set size:", len(test_loader.dataset))
+
+    # Print unique labels in each set
+    print("Labeling set labels:", set([label for _, label in labeling_loader.dataset]))
+    print("Public set labels:", set([label for _, label in public_loader.dataset]))
+    print("Private set labels:", set([label for _, label in private_loader.dataset]))
+    print("Test set labels:", set([label for _, label in test_loader.dataset]))

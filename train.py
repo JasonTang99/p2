@@ -59,9 +59,9 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
     """
 
     # Check if anything inside run_fp exists
-    # if os.path.exists(f"{run_fp}/loss.txt"):
-    #     print(f"{run_fp} already exists. Skipping...")
-    #     return
+    if os.path.exists(f"{run_fp}/loss.txt"):
+        print(f"{run_fp} already exists. Skipping...")
+        return
     
     # Track time
     start_time = time()
@@ -74,7 +74,8 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
     with open(f"{run_fp}/loss.txt", "a") as f:
         for i in tqdm(range(args.n_g)):
             # Update Discriminator
-            netD.enable_hooks()
+            if privacy_engine is not None:
+                netD.enable_hooks()
             netD.train()
             netG.eval()
             for j in range(args.n_d):
@@ -108,8 +109,9 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
                 if i % print_mod == 0:
                     print(f"{i}.{j}, {d_loss.item()}", file=f)
 
+            if privacy_engine is not None:
+                netD.disable_hooks()
             netD.eval()
-            netD.disable_hooks()
             netG.train()
 
             # Update Generator
@@ -147,7 +149,7 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
         print(f"Training time: {time() - start_time}")
 
 
-def main(args):
+def main(args, private=True):
     # Random Seeding
     torch.manual_seed(0)
     np.random.seed(0)
@@ -182,38 +184,72 @@ def main(args):
     # Setup MNIST dataset
     train_loader, _ = MNIST(args.batch_size)
 
+    if private:
+        # Setup Privacy Engine
+        privacy_engine = PrivacyEngine()
+        netD, optimizerD, train_loader = privacy_engine.make_private(
+            module=netD,
+            optimizer=optimizerD,
+            data_loader=train_loader,
+            max_grad_norm=c_g,
+            noise_multiplier=args.noise_multiplier,
+        )
+        print(
+            f"Model:{type(netD)}, \nOptimizer:{type(optimizerD)}, \nDataLoader:{type(train_loader)}"
+        )
 
-    privacy_engine = PrivacyEngine()
-    netD, optimizerD, train_loader = privacy_engine.make_private(
-        module=netD,
-        optimizer=optimizerD,
-        data_loader=train_loader,
-        max_grad_norm=c_g,
-        noise_multiplier=args.noise_multiplier,
-    )
-    print(
-        f"Model:{type(netD)}, \nOptimizer:{type(optimizerD)}, \nDataLoader:{type(train_loader)}"
-    )
-
-    verbose = False
-    verbose = True
-    train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, privacy_engine, verbose=verbose)
+        verbose = False
+        # verbose = True
+        train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, privacy_engine, verbose=verbose)
+    else:
+        verbose = False
+        # verbose = True
+        train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, privacy_engine=None, verbose=verbose)
 
 if __name__ == "__main__":
     # Collect all parameters
     # args = get_input_args()
-    # or
+
+    # Non-private model
     args = Args(
         # Model Parameters
         hidden=[16, 12], nz=100, ngf=32, nc=1, 
         # Privacy Parameters
-        epsilon=50.0, delta=1e-6, noise_multiplier=0.4, c_p=0.005, 
+        epsilon=float("inf"), delta=1e-6, noise_multiplier=0.4, c_p=0.005, 
         # Training Parameters
-        lr=5e-4, beta1=0.5, batch_size=64, n_d=3, n_g=int(1e4)
+        lr=5e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(5e4)
     )
+    main(args, private=False)
 
-    main(args)
+    exit(0)
 
+
+    # Private model Hyperparameter Search
+    hiddens = [[16, 12], [12, 4, 4]]
+    noise_multipliers = [0.4, 0.2, 0.1]
+
+    for hidden in hiddens:
+        for noise_multiplier in noise_multipliers:
+            args = Args(
+                # Model Parameters
+                hidden=hidden, nz=100, ngf=32, nc=1, 
+                # Privacy Parameters
+                epsilon=50.0, delta=1e-6, noise_multiplier=noise_multiplier, c_p=0.005, 
+                # Training Parameters
+                lr=5e-4, beta1=0.5, batch_size=64, n_d=3, n_g=int(1e4)
+            )
+            main(args)
+
+    # args = Args(
+    #     # Model Parameters
+    #     hidden=[16, 12], nz=100, ngf=32, nc=1, 
+    #     # Privacy Parameters
+    #     epsilon=50.0, delta=1e-6, noise_multiplier=0.4, c_p=0.005, 
+    #     # Training Parameters
+    #     lr=5e-4, beta1=0.5, batch_size=64, n_d=4, n_g=int(1e4)
+    # )
+
+    # main(args)
 
 
 
