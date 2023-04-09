@@ -25,5 +25,5 @@ while true; do
   fi
 
   # Wait for 1 second before checking the temperature again
-  sleep 1
+  sleep 5
 done

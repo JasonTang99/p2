@@ -8,6 +8,7 @@ from time import time
 from utils import generate_run_id, get_input_args, Args
 from models import Discriminator, Generator_MNIST, Weight_Clipper, G_weights_init
 from data import load_MNIST
+from privacy import compute_ReLU_bounds, compute_Tanh_bounds
 
 import torch
 import torch.nn as nn
@@ -24,33 +25,6 @@ from opacus.validators import ModuleValidator
 
 import warnings
 warnings.filterwarnings("ignore")
-
-
-# Given parameter clip bounds c_p, compute maximal ReLU activation bounds B_sigma
-def compute_ReLU_bounds(model, c_p, input_size=(784,), input_bounds=1.0, B_sigma_p=1.0):
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    sample = torch.ones(input_size[0]).to(device) * input_bounds
-    B_sigma = 0.0
-    sum_mk_mkp1 = 0
-    skip_first = True
-
-    for layer in model.modules():
-        if isinstance(layer, nn.Linear):
-            W = torch.ones_like(layer.weight) * c_p
-            sample = W @ sample
-            
-            B_sigma = max(B_sigma, sample.max().detach().item())
-            
-            if skip_first:
-                skip_first = False
-            else:
-                sum_mk_mkp1 += W.shape[0] * W.shape[1]
-    
-    c_g = 2 * c_p * B_sigma * (B_sigma_p ** 2) * sum_mk_mkp1
-    print("B_sigma", B_sigma)
-    print("sum_mk_mkp1", sum_mk_mkp1)
-    print("c_g", c_g)
-    return c_g
 
 
 def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, privacy_engine=None, verbose=False):
@@ -99,8 +73,6 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
                 optimizerD.step()
 
                 # Clip weights in discriminator
-                # for p in netD.parameters():
-                #     p.data.clamp_(-args.c_p, args.c_p)
                 netD.apply(clipper)
 
                 if verbose:
@@ -126,6 +98,9 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
 
             if verbose:
                 print(f"Epoch: {i} G_loss: {g_loss.item()}")
+                # print eps
+                if privacy_engine is not None:
+                    print(f"Epoch: {i} eps: {privacy_engine.get_epsilon(args.delta)}")
             if i % print_mod == 0:
                 print(f"{i}, {g_loss.item()}", file=f)
 
@@ -137,9 +112,11 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
                     continue
                 
                 # Private model
-                eps = privacy_engine.get_epsilon(args.delta)
-                print(f"Saving model at iteration {i+1}, epsilon {eps}")
-                print(f"{i+1}: epsilon {eps}", file=f)
+                # eps = privacy_engine.get_epsilon(args.delta)
+                # print(f"Saving model at iteration {i+1}, epsilon {eps}")
+                # print(f"{i+1}: epsilon {eps}", file=f)
+                
+                print(f"{i+1} Training time: {time() - start_time}", file=f)
                 torch.save(netG.state_dict(), f"{run_fp}/netG_{i+1}.pt")
                 torch.save(netD._module.state_dict(), f"{run_fp}/netD_{i+1}.pt")
                 torch.save(privacy_engine.accountant, f"{run_fp}/accountant_{i+1}.pth")
@@ -149,7 +126,7 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
         print(f"Training time: {time() - start_time}")
 
 
-def main(args, private=True):
+def main(args, private=True, use_public_data=False):
     # Random Seeding
     torch.manual_seed(0)
     np.random.seed(0)
@@ -162,6 +139,12 @@ def main(args, private=True):
 
     # Generate Run ID
     run_id = generate_run_id(args)
+    if not private:
+        if use_public_data:
+            run_id = "public_" + run_id
+        else:
+            run_id = "private_" + run_id
+
     run_fp = os.path.join('runs/', run_id)
     os.makedirs(run_fp, exist_ok=True)
 
@@ -178,12 +161,17 @@ def main(args, private=True):
     print("Gradient clip:", c_g)
 
     # Setup optimizers
-    optimizerD = optim.Adam(netD.parameters(), lr=args.lr, betas=(args.beta1, 0.999))
-    optimizerG = optim.Adam(netG.parameters(), lr=args.lr, betas=(args.beta1, 0.999))
+    weight_decay = 1e-5
+    optimizerD = optim.Adam(netD.parameters(), lr=args.lr, betas=(args.beta1, 0.999), weight_decay=weight_decay)
+    optimizerG = optim.Adam(netG.parameters(), lr=args.lr, betas=(args.beta1, 0.999), weight_decay=weight_decay)
 
     # Setup MNIST dataset using load_MNIST
     labeling_loader, public_loader, private_loader, test_loader = load_MNIST(args.batch_size)
-    train_loader = private_loader
+    
+    if use_public_data:
+        train_loader = public_loader
+    else:
+        train_loader = private_loader
 
     if private:
         # Setup Privacy Engine
@@ -207,9 +195,10 @@ def main(args, private=True):
         # verbose = True
         train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, privacy_engine=None, verbose=verbose)
 
+
 if __name__ == "__main__":
     # Collect all parameters
-    # args = get_input_args()
+    args = get_input_args()
 
     # Non-private model
     args = Args(
@@ -218,16 +207,14 @@ if __name__ == "__main__":
         # Privacy Parameters
         epsilon=float("inf"), delta=1e-6, noise_multiplier=0.4, c_p=0.005, 
         # Training Parameters
-        lr=5e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(5e4)
+        lr=1e-4, beta1=0.5, batch_size=64, n_d=4, n_g=int(5e5)
     )
-    main(args, private=False)
-
-    exit(0)
-
+    main(args, private=False, public=True)
+    main(args, private=False, public=False)
 
     # Private model Hyperparameter Search
     hiddens = [[16, 12], [12, 4, 4]]
-    noise_multipliers = [0.4, 0.2, 0.1]
+    noise_multipliers = [0.6, 0.4]
 
     for hidden in hiddens:
         for noise_multiplier in noise_multipliers:
@@ -237,7 +224,7 @@ if __name__ == "__main__":
                 # Privacy Parameters
                 epsilon=50.0, delta=1e-6, noise_multiplier=noise_multiplier, c_p=0.005, 
                 # Training Parameters
-                lr=5e-4, beta1=0.5, batch_size=64, n_d=3, n_g=int(1e4)
+                lr=1e-4, beta1=0.5, batch_size=32, n_d=4, n_g=int(5e5)
             )
             main(args)
 

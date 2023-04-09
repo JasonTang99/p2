@@ -23,6 +23,7 @@ def load_MNIST(batch_size):
     # Check if we need to split
     if os.path.exists("labeling_set.pt") and os.path.exists("public_set.pt") and os.path.exists("private_set.pt"):
         # Load from disk
+        print("Loading MNIST splits from disk")
         labeling_set = torch.load(f"{MNIST_fp}/labeling_set.pt")
         public_set = torch.load(f"{MNIST_fp}/public_set.pt")
         private_set = torch.load(f"{MNIST_fp}/private_set.pt")

@@ -1,4 +1,5 @@
 *.pth
 *.pt
 runs/**/*
+runs_1/**/*
 **/__pycache__/

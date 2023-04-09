@@ -9,17 +9,18 @@ class Discriminator(nn.Module):
     - hidden_sizes: list of hidden layer sizes
     - input_size: size of the input vector
     """
-    def __init__(self, hidden_sizes=[64, 16], input_size=28**2):
+    def __init__(self, hidden_sizes=[64, 16], input_size=28**2, activation=nn.LeakyReLU(0.2, inplace=True)):
         super(Discriminator, self).__init__()
         self.input_size = input_size
         self.model = nn.Sequential(
             nn.Linear(input_size, hidden_sizes[0], bias=False),
-            nn.ReLU(True),
+            activation,
             *list(chain.from_iterable([[
                 nn.Linear(hidden_sizes[i], hidden_sizes[i+1], bias=False), 
-                nn.ReLU(True)
+                activation
             ] for i in range(len(hidden_sizes) - 1)])),
             nn.Linear(hidden_sizes[-1], 1, bias=False),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -176,7 +177,7 @@ if __name__ == '__main__':
 
     assert x.shape == xp.shape
 
-    exit()
+    
 
 
     # Test Discriminator
@@ -184,6 +185,11 @@ if __name__ == '__main__':
     x = torch.randn(1, 28**2)
     print(D(x))
     print(D.model)
+
+    D_tanh = Discriminator(hidden_sizes=[64, 16, 16, 16], input_size=28**2, activation=nn.Tanh())
+    x = torch.randn(1, 28**2)
+    print(D_tanh(x))
+    print(D_tanh.model)
 
     # Print max and min weights
     print("Max weight:", D.model[0].weight.data.max())
@@ -196,6 +202,8 @@ if __name__ == '__main__':
     # Print max and min weights
     print("Max weight:", D.model[0].weight.data.max())
     print("Min weight:", D.model[0].weight.data.min())
+
+    exit()
 
     # Validate
     from opacus.validators import ModuleValidator
