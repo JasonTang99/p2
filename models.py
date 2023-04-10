@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from itertools import chain
 
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 class Discriminator(nn.Module):
     """ Fully-connected Discriminator
     Inputs:
@@ -24,7 +26,7 @@ class Discriminator(nn.Module):
         )
 
     def forward(self, x):
-        # Flatten the input
+        # (batch_size, input_size) -> (batch_size, 1)
         x = x.view(-1, self.input_size)
         return self.model(x)
 
@@ -32,26 +34,21 @@ class Discriminator(nn.Module):
 class Discriminator_MNIST(nn.Module):
     def __init__(self, ndf=32, nc=1, activation=nn.LeakyReLU(0.2, inplace=True)):
         super(Discriminator_MNIST, self).__init__()
-        # 6 layer discriminator
+        # 4 layer discriminator
         self.model = nn.Sequential(
             # input is (nc) x 28 x 28
-            nn.Conv2d(nc, ndf, 4, 2, 1),
+            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
             activation,
             # state size. (ndf) x 14 x 14
-            nn.Conv2d(ndf, ndf * 2, 4, 2, 1),
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
             activation,
             # state size. (ndf*2) x 7 x 7
-            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1),
-            activation,
-            # state size. (ndf*4) x 4 x 4
-            nn.Conv2d(ndf * 4, ndf, 4, 2, 1),
-            activation,
-            nn.Flatten(),
-            nn.Linear(ndf, 1),
+            nn.Conv2d(ndf * 2, 1, 7, 1, 0, bias=False),
             nn.Sigmoid()
         )
 
     def forward(self, x):
+        # (batch_size, 1, 28, 28) -> (batch_size, 1)
         return self.model(x)
 
 class Weight_Clipper(object):
@@ -72,6 +69,7 @@ class Generator_MNIST(nn.Module):
     """
     def __init__(self, nz=100, ngf=32, nc=1):
         super(Generator_MNIST, self).__init__()
+        self.nz = nz
         self.model = nn.Sequential(
             # input is Z, going into a convolution
             nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0, bias=False),
@@ -96,6 +94,8 @@ class Generator_MNIST(nn.Module):
         )
 
     def forward(self, x):
+        # (batch_size, nz, 1, 1) -> (batch_size, nc, 28, 28)
+        x = x.view(-1, self.nz, 1, 1)
         return self.model(x)
 
 
@@ -124,6 +124,7 @@ class Generator_FC(nn.Module):
         )
 
     def forward(self, x):
+        # (batch_size, nz) -> (batch_size, output_size)
         return self.model(x)
 
 # Setup Generator Weight Initialization
@@ -142,24 +143,26 @@ class Encoder(nn.Module):
         super(Encoder, self).__init__()
         self.latent_size = latent_size
         
+        activation = nn.LeakyReLU(0.2, inplace=True)
         self.model = nn.Sequential(
             # Convolutional layers
             nn.Conv2d(1, 8, 3, stride=2, padding=1),
             nn.BatchNorm2d(8),
-            nn.ReLU(True),
+            activation,
             nn.Conv2d(8, 16, 3, stride=2, padding=1),
             nn.BatchNorm2d(16),
-            nn.ReLU(True),
+            activation,
             nn.Conv2d(16, 32, 3, stride=2, padding=0),
-            nn.ReLU(True),
+            nn.BatchNorm2d(32),
             nn.Flatten(),
             # Linear layers
-            nn.Linear(32*3*3, 96),
-            nn.ReLU(True),
-            nn.Linear(96, self.latent_size),
+            nn.Linear(32*3*3, 100),
+            activation,
+            nn.Linear(100, self.latent_size),
         )
 
     def forward(self, x):
+        # (batch_size, 1, 28, 28) -> (batch_size, latent_size)
         return self.model(x)
 
 class Decoder(nn.Module):
@@ -186,12 +189,12 @@ class Decoder(nn.Module):
         )
 
     def forward(self, x):
+        # (batch_size, latent_size) -> (batch_size, 1, 28, 28)
         return self.model(x)
 
 
 if __name__ == '__main__':
     # test discriminator mnist
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     D = Discriminator_MNIST(ndf=16, nc=1).to(device)
     x = torch.randn(16, 1, 28, 28).to(device)
     print(D(x).shape)
@@ -211,40 +214,31 @@ if __name__ == '__main__':
     print("D_2", c_g)
 
 
+    # Load one of each model
+    D = Discriminator_MNIST().to(device)
+    D_2 = Discriminator().to(device)
+    G = Generator_MNIST().to(device)
+    G_2 = Generator_FC().to(device)
+
+    Enc = Encoder(latent_size=100).to(device)
+    Dec = Decoder(latent_size=100).to(device)
+
+    x = torch.randn(32, 1, 28, 28).to(device)
+    z = torch.randn(32, 100).to(device)
+
+    print(D(x).shape)
+    print(D_2(x).shape)
+    print(G(z).shape)
+    print(G_2(z).shape)
+    print(Enc(x).shape)
+    print(Dec(z).shape)
 
     exit(0)
-
-
-    # Test Encoder
-    E = Encoder()
-
-    # print a convolutional layer
-    print(E.model[0].bias.shape)
-    exit(0)
-
-    x = torch.randn(32, 1, 28, 28)
-    print(E(x).shape)
-
-    # Test Decoder
-    D = Decoder()
-    xp = D(E(x))
-    print(xp.shape)
-
-    assert x.shape == xp.shape
-
-    
-
 
     # Test Discriminator
     D = Discriminator(hidden_sizes=[64, 16, 16, 16], input_size=28**2)
     x = torch.randn(1, 28**2)
     print(D(x))
-    print(D.model)
-
-    D_tanh = Discriminator(hidden_sizes=[64, 16, 16, 16], input_size=28**2, activation=nn.Tanh())
-    x = torch.randn(1, 28**2)
-    print(D_tanh(x))
-    print(D_tanh.model)
 
     # Print max and min weights
     print("Max weight:", D.model[0].weight.data.max())
@@ -258,8 +252,6 @@ if __name__ == '__main__':
     print("Max weight:", D.model[0].weight.data.max())
     print("Min weight:", D.model[0].weight.data.min())
 
-    exit()
-
     # Validate
     from opacus.validators import ModuleValidator
     errors = ModuleValidator.validate(D, strict=False)
@@ -268,7 +260,7 @@ if __name__ == '__main__':
     # Test Generator
     G = Generator_MNIST()
     G.apply(G_weights_init)
-    z = torch.randn(16, 100, 1, 1)
+    z = torch.randn(16, 100)
     print(G(z).shape)
     print(G.model)
 

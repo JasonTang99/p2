@@ -20,7 +20,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def train(enc, dec, train_loader, lr=5e-4, verbose=True):
+def train(enc, dec, train_loader, lr=5e-4, epochs=1000, verbose=True):
     """Training process"""
     run_fp = "runs/autoencoder"
 
@@ -41,7 +41,6 @@ def train(enc, dec, train_loader, lr=5e-4, verbose=True):
     
     # Track time
     start_time = time()
-    epochs = 1000
     
     enc.train()
     dec.train()
@@ -65,8 +64,8 @@ if __name__ == "__main__":
     train_loader = public_loader
 
     # Model
-    enc = Encoder()
-    dec = Decoder()
+    enc = Encoder(latent_size=100)
+    dec = Decoder(latent_size=100)
 
     # Train
-    train(enc, dec, train_loader)
+    train(enc, dec, train_loader, lr=5e-4, epochs=1000, verbose=True)

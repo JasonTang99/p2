@@ -4,6 +4,8 @@ import torchvision.transforms as transforms
 
 import os
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
 def load_MNIST(batch_size):
     """Load MNIST dataset
     Train set of 60000 images. Split into 3 parts:
@@ -61,8 +63,35 @@ def load_MNIST(batch_size):
 
     return labeling_loader, public_loader, private_loader, test_loader
 
+# Load latent space dataset
+def load_latent_space(batch_size, data_fp="data/wgan_latent_dataset.pt"):
+    """Load latent space dataset
+    """
+    dataset = torch.load(data_fp)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    return loader
+
 
 if __name__ == "__main__":
+    # Test latent space
+    loader = load_latent_space(64)
+    print("Latent space dataset size:", len(loader.dataset))
+    print("Latent space sample shape:", next(iter(loader))[0].shape)
+
+    from models import Discriminator, Generator_FC
+    D = Discriminator(hidden_sizes=[16, 16], input_size=100).to(device)
+    G = Generator_FC(nz=32, hidden_sizes=[16, 32], output_size=100).to(device)
+
+    for i, data in enumerate(loader):
+        print(data[0].shape)
+        print(D(data[0]).shape)
+        noise = torch.randn(64, 32).to(device)
+        print(G(noise).shape)
+        break
+
+    exit(0)
+
+
     # Test MNIST
     labeling_loader, public_loader, private_loader, test_loader = load_MNIST(64)
 

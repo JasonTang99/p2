@@ -27,7 +27,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, input_size, 
+def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, 
         privacy_engine=None, verbose=False):
     """Training process
     if privacy_engine is not None, then train with DP
@@ -55,8 +55,7 @@ def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, d
             for j in range(args.n_d):
                 # Generate real and fake
                 real_data = next(iter(train_loader))[0].to(device)
-                # real_data = real_data.view(-1, *input_size)
-                noise = torch.randn(real_data.size(0), 100, 1, 1).to(device)
+                noise = torch.randn(real_data.size(0), args.nz).to(device)
                 fake_data = netG(noise)
 
                 # Run Discriminator
@@ -71,11 +70,11 @@ def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, d
                     # Improved WGAN-GP loss
                     eps = torch.rand(real_data.size(0), 1, 1, 1).to(device)
                     x_hat = eps * real_data + (1 - eps) * fake_data
-                    x_hat.requires_grad = True
                     x_hat_output = netD(x_hat)
 
                     grad_x_hat = torch.autograd.grad(outputs=x_hat_output, inputs=x_hat,
-                    grad_outputs=torch.ones_like(x_hat_output), create_graph=False)[0].view(grad_x_hat.size(0), -1)
+                    grad_outputs=torch.ones_like(x_hat_output), create_graph=False)[0]
+                    grad_x_hat = grad_x_hat.view(grad_x_hat.size(0), -1)
                     grad_x_hat_norm = torch.sqrt(torch.sum(grad_x_hat ** 2, dim=1))
                     grad_penalty = args.lambda_gp * torch.mean((grad_x_hat_norm - 1) ** 2)
                     
@@ -101,7 +100,7 @@ def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, d
             netG.train()
 
             # Update Generator
-            noise = torch.randn(args.batch_size, 100, 1, 1).to(device)
+            noise = torch.randn(args.batch_size, args.nz).to(device)
             fake_output = netD(netG(noise))
             g_loss = -torch.mean(fake_output)
 
@@ -169,23 +168,25 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
     
     if args.hidden is not None:
         netD = Discriminator(args.hidden, input_size=784, activation=activation).to(device)
-        input_size = (784,)
     else:
         # Use CNN
         netD = Discriminator_MNIST(ndf=16, nc=args.nc, activation=activation).to(device)
-        input_size = (1, 28, 28)
     print(netD)
 
     netG = Generator_MNIST(nz=args.nz, ngf=args.ngf, nc=args.nc).to(device)
     netG.apply(G_weights_init)
 
+    # For Latent Space 
+    # D = Discriminator(hidden_sizes=[16, 16], input_size=100).to(device)
+    # G = Generator_FC(nz=32, hidden_sizes=[16, 32], output_size=100).to(device)
+
     # Privacy Validation
     ModuleValidator.validate(netD, strict=True)
 
-    # if args.activation == "LeakyReLU":
-    #     c_g = compute_ReLU_bounds(netD, args.c_p)
-    # elif args.activation == "Tanh":
-    #     c_g = compute_Tanh_bounds(netD, args.c_p)
+    if args.activation == "LeakyReLU":
+        c_g = compute_ReLU_bounds(netD, args.c_p)
+    elif args.activation == "Tanh":
+        c_g = compute_Tanh_bounds(netD, args.c_p)
 
     # Use empirical c_g
     emp_c_g = compute_empirical_bounds(netD, args.c_p)
@@ -219,24 +220,18 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
         print(
             f"Model:{type(netD)}, \nOptimizer:{type(optimizerD)}, \nDataLoader:{type(train_loader)}"
         )
-
-        verbose = False
-        # verbose = True
-        train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, input_size, 
-            privacy_engine, verbose=verbose)
     else:
-        verbose = False
-        # verbose = True
-        train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, input_size,
-            privacy_engine=None, verbose=verbose)
+        privacy_engine = None
+    
+    verbose = False
+    # verbose = True
+    train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, 
+        privacy_engine, verbose=verbose)
 
 
-if __name__ == "__main__":
-    # Collect all parameters
-    # args = get_input_args()
-
+def train_non_private():
     # Non-private model on private data
-    lambda_gps = [0.0, 10.0]
+    lambda_gps = [10.0, 0.0]
     for lambda_gp in lambda_gps:
         args = Args(
             # Model Parameters
@@ -244,10 +239,9 @@ if __name__ == "__main__":
             # Privacy Parameters
             epsilon=float("inf"), delta=1e-6, noise_multiplier=0.0, c_p=0.01, 
             # Training Parameters
-            lr=1e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(2e5), lambda_gp=lambda_gp
+            lr=1e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(1e5), lambda_gp=lambda_gp
         )
         main(args, private=False, use_public_data=False)
-    
 
     # Non-private model on public data (using improved WGAN)
     args = Args(
@@ -256,11 +250,11 @@ if __name__ == "__main__":
         # Privacy Parameters
         epsilon=float("inf"), delta=1e-6, noise_multiplier=0.0, c_p=0.01, 
         # Training Parameters
-        lr=1e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(2e5), lambda_gp=10.0
+        lr=5e-5, beta1=0.5, batch_size=64, n_d=5, n_g=int(3e5), lambda_gp=10.0
     )
     main(args, private=False, use_public_data=True)
 
-
+def grid_search():
     # Private model Hyperparameter Search
     hiddens = [None, ]# [16, 12], ]# [12, 4, 4]]
     noise_multipliers = [0.0, 0.05, 0.1, 0.2]
@@ -280,3 +274,12 @@ if __name__ == "__main__":
                         lr=1e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(2e5), lambda_gp=lambda_gp
                     )
                     main(args, c_g_mult=2.0)
+
+if __name__ == "__main__":
+    # Collect all parameters
+    # args = get_input_args()
+    # main(args)
+
+    train_non_private()
+    grid_search()
+
