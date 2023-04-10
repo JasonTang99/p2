@@ -50,6 +50,45 @@ def compute_Tanh_bounds(model, c_p, input_size=(784,), input_bounds=1.0, B_sigma
     return c_g
 
 
+# Calculate empirical activation bounds
+def compute_empirical_bounds(model, c_p, input_size=(1, 1, 28, 28), input_bounds=1.0, B_sigma_p=1.0):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    sample = torch.ones(input_size).to(device) * input_bounds
+
+    # Set all weights to c_p
+    for layer in model.modules():
+        if isinstance(layer, nn.Linear):
+            layer.weight.data = torch.ones_like(layer.weight) * c_p
+            if layer.bias is not None:
+                layer.bias.data = torch.ones_like(layer.bias) * c_p
+        elif isinstance(layer, nn.Conv2d):
+            layer.weight.data = torch.ones_like(layer.weight) * c_p
+            if layer.bias is not None:
+                layer.bias.data = torch.ones_like(layer.bias) * c_p
+    
+    # Forward pass
+    output = model(sample)
+    print(output.shape)
+    loss = output.sum() * 2
+    loss.backward()
+
+    # Calculate c_g (L2 norm of gradients)
+    c_g = 0.0
+    for layer in model.modules():
+        if isinstance(layer, nn.Linear):
+            c_g += (layer.weight.grad ** 2).sum().item()
+            if layer.bias is not None:
+                c_g += (layer.bias.grad ** 2).sum().item()
+        elif isinstance(layer, nn.Conv2d):
+            c_g += (layer.weight.grad ** 2).sum().item()
+            if layer.bias is not None:
+                c_g += (layer.bias.grad ** 2).sum().item()
+
+    c_g = c_g ** 0.5
+    print("c_g", c_g)
+    return c_g
+
+
 if __name__ == "__main__":
     # Test bounds
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -57,6 +96,9 @@ if __name__ == "__main__":
 
     netD = Discriminator([16, 12], input_size=784).to(device)
     compute_ReLU_bounds(netD, c_p)
+    compute_empirical_bounds(netD, c_p)
 
+    exit(0)
     netD = Discriminator([16, 12], input_size=784, activation=nn.Tanh()).to(device)
     compute_Tanh_bounds(netD, c_p)
+

@@ -6,9 +6,9 @@ import os
 from time import time
 
 from utils import generate_run_id, get_input_args, Args
-from models import Discriminator, Generator_MNIST, Weight_Clipper, G_weights_init
+from models import Discriminator, Discriminator_MNIST, Generator_MNIST, Weight_Clipper, G_weights_init
 from data import load_MNIST
-from privacy import compute_ReLU_bounds, compute_Tanh_bounds
+from privacy import compute_ReLU_bounds, compute_Tanh_bounds, compute_empirical_bounds
 
 import torch
 import torch.nn as nn
@@ -27,11 +27,12 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, privacy_engine=None, verbose=False):
+def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, input_size, 
+        privacy_engine=None, improved=False, verbose=False):
     """Training process
     if privacy_engine is not None, then train with DP
+    improved: if True, use improved WGAN training process
     """
-
     # Check if anything inside run_fp exists
     if os.path.exists(f"{run_fp}/loss.txt"):
         print(f"{run_fp} already exists. Skipping...")
@@ -52,12 +53,11 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
                 netD.enable_hooks()
             netD.train()
             netG.eval()
+
             for j in range(args.n_d):
-                # Train with real data
+                # Generate real and fake
                 real_data = next(iter(train_loader))[0].to(device)
-                real_data = real_data.view(real_data.size(0), -1)
-                
-                # Train with fake data
+                real_data = real_data.view(-1, *input_size)
                 noise = torch.randn(real_data.size(0), 100, 1, 1).to(device)
                 fake_data = netG(noise)
 
@@ -104,7 +104,7 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
             if i % print_mod == 0:
                 print(f"{i}, {g_loss.item()}", file=f)
 
-            if (i+1) % 2000 == 0:
+            if (i+1) % 5000 == 0:
                 # Non-private model
                 if privacy_engine is None:
                     torch.save(netG.state_dict(), f"{run_fp}/netG_{i+1}.pt")
@@ -126,7 +126,7 @@ def train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device
         print(f"Training time: {time() - start_time}")
 
 
-def main(args, private=True, use_public_data=False):
+def main(args, private=True, use_public_data=False, c_g_mult=1, use_cnn=True):
     # Random Seeding
     torch.manual_seed(0)
     np.random.seed(0)
@@ -149,17 +149,41 @@ def main(args, private=True, use_public_data=False):
     os.makedirs(run_fp, exist_ok=True)
 
     # Setup models
-    netD = Discriminator(args.hidden, input_size=784).to(device)
+    if args.activation == "LeakyReLU":
+        activation = nn.LeakyReLU(0.2, inplace=True)
+    elif args.activation == "Tanh":
+        activation = nn.Tanh()
+    else:
+        # Throw error
+        raise ValueError("Activation function not supported")
+    
+    netD = Discriminator(args.hidden, input_size=784, activation=activation).to(device)
+    input_size = (784,)
+
+    # Use CNN
+    if use_cnn:
+        netD = Discriminator_MNIST(ndf=16, nc=args.nc).to(device)
+        input_size = (1, 28, 28)
+    print(netD)
+
+
     netG = Generator_MNIST(nz=args.nz, ngf=args.ngf, nc=args.nc).to(device)
     netG.apply(G_weights_init)
 
     # Privacy Validation
     ModuleValidator.validate(netD, strict=True)
 
-    # Setup parameters for Gradient Clip Calculation
-    c_g = compute_ReLU_bounds(netD, args.c_p)
-    print("Gradient clip:", c_g)
+    if args.activation == "LeakyReLU":
+        c_g = compute_ReLU_bounds(netD, args.c_p)
+    elif args.activation == "Tanh":
+        c_g = compute_Tanh_bounds(netD, args.c_p)
 
+    # Use empirical c_g
+    emp_c_g = compute_empirical_bounds(netD, args.c_p, input_size=(1, *input_size))
+    c_g = c_g_mult * emp_c_g
+
+    print("Gradient clip:", c_g)
+    
     # Setup optimizers
     weight_decay = 1e-5
     optimizerD = optim.Adam(netD.parameters(), lr=args.lr, betas=(args.beta1, 0.999), weight_decay=weight_decay)
@@ -189,11 +213,13 @@ def main(args, private=True, use_public_data=False):
 
         verbose = False
         # verbose = True
-        train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, privacy_engine, verbose=verbose)
+        train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, input_size, 
+            privacy_engine, verbose=verbose)
     else:
         verbose = False
         # verbose = True
-        train(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, privacy_engine=None, verbose=verbose)
+        train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, input_size,
+            privacy_engine=None, verbose=verbose)
 
 
 if __name__ == "__main__":
@@ -203,41 +229,28 @@ if __name__ == "__main__":
     # Non-private model
     args = Args(
         # Model Parameters
-        hidden=[16, 12], nz=100, ngf=32, nc=1, 
+        hidden=[16, 12], nz=100, ngf=32, nc=1, activation="LeakyReLU",
         # Privacy Parameters
-        epsilon=float("inf"), delta=1e-6, noise_multiplier=0.4, c_p=0.005, 
+        epsilon=float("inf"), delta=1e-6, noise_multiplier=0.0, c_p=0.01, 
         # Training Parameters
-        lr=1e-4, beta1=0.5, batch_size=64, n_d=4, n_g=int(5e5)
+        lr=1e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(2e5)
     )
-    main(args, private=False, public=True)
-    main(args, private=False, public=False)
+    main(args, private=False, use_public_data=False, c_g_mult=1.0, use_cnn=True)
 
     # Private model Hyperparameter Search
-    hiddens = [[16, 12], [12, 4, 4]]
-    noise_multipliers = [0.6, 0.4]
+    hiddens = [[16, 12], ]# [12, 4, 4]]
+    noise_multipliers = [0.0, 0.05, 0.1, 0.2]
+    activations = ["LeakyReLU", ] # ["Tanh",] # 
 
     for hidden in hiddens:
         for noise_multiplier in noise_multipliers:
-            args = Args(
-                # Model Parameters
-                hidden=hidden, nz=100, ngf=32, nc=1, 
-                # Privacy Parameters
-                epsilon=50.0, delta=1e-6, noise_multiplier=noise_multiplier, c_p=0.005, 
-                # Training Parameters
-                lr=1e-4, beta1=0.5, batch_size=32, n_d=4, n_g=int(5e5)
-            )
-            main(args)
-
-    # args = Args(
-    #     # Model Parameters
-    #     hidden=[16, 12], nz=100, ngf=32, nc=1, 
-    #     # Privacy Parameters
-    #     epsilon=50.0, delta=1e-6, noise_multiplier=0.4, c_p=0.005, 
-    #     # Training Parameters
-    #     lr=5e-4, beta1=0.5, batch_size=64, n_d=4, n_g=int(1e4)
-    # )
-
-    # main(args)
-
-
-
+            for activation in activations:
+                args = Args(
+                    # Model Parameters
+                    hidden=hidden, nz=100, ngf=32, nc=1, activation=activation,
+                    # Privacy Parameters
+                    epsilon=38.0, delta=1e-6, noise_multiplier=noise_multiplier, c_p=0.01, 
+                    # Training Parameters
+                    lr=1e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(2e5)
+                )
+                main(args, c_g_mult=2.0, use_cnn=True)

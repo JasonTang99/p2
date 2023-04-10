@@ -30,13 +30,13 @@ def train(run_fp, model, optimizer, train_loader, loss_fn, device, epochs=int(5e
     
     # Track time
     start_time = time()
-    print_mod = 10
+    print_mod = 1
     
     model.train()
     with open(f"{run_fp}/loss.txt", "a") as f:
         for epoch in tqdm(range(epochs)):
             for i, (images, labels) in enumerate(train_loader):
-                images = images.to(device)
+                images = images.to(device).repeat(1, 3, 1, 1)
                 labels = labels.to(device)
 
                 # Forward pass
@@ -62,6 +62,23 @@ def train(run_fp, model, optimizer, train_loader, loss_fn, device, epochs=int(5e
     # Save model
     torch.save(model.state_dict(), f"{run_fp}/model.pt")
 
+# Validation
+def validate(model, loader, device):
+    """Validate model on a dataset"""
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for images, labels in loader:
+            images = images.to(device).repeat(1, 3, 1, 1)
+            labels = labels.to(device)
+
+            outputs = model(images)
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+
+    print(f"Accuracy: {100 * correct / total:.2f}%")
 
 
 def main(lr, weight_decay, batch_size, epochs):
@@ -79,7 +96,7 @@ def main(lr, weight_decay, batch_size, epochs):
     os.makedirs(run_fp, exist_ok=True)
 
     # Setup ResNet Model
-    model = torchvision.models.resnet18(pretrained=True)
+    model = torchvision.models.resnet18()
     model.fc = nn.Linear(512, 10)
     model.to(device)
 
@@ -95,6 +112,12 @@ def main(lr, weight_decay, batch_size, epochs):
 
     # Train model
     train(run_fp, model, optimizer, train_loader, loss_fn, device, epochs, verbose=True)
+
+    # Validate model on public and private datasets
+    print("Validating on public dataset")
+    validate(model, public_loader, device)
+    print("Validating on private dataset")
+    validate(model, private_loader, device)
 
 
 if __name__ == "__main__":

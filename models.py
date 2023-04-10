@@ -28,6 +28,32 @@ class Discriminator(nn.Module):
         x = x.view(-1, self.input_size)
         return self.model(x)
 
+# Convolutional Discriminator for MNIST image size (1, 28, 28)
+class Discriminator_MNIST(nn.Module):
+    def __init__(self, ndf=32, nc=1):
+        super(Discriminator_MNIST, self).__init__()
+        # 6 layer discriminator
+        self.model = nn.Sequential(
+            # input is (nc) x 28 x 28
+            nn.Conv2d(nc, ndf, 4, 2, 1),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf) x 14 x 14
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1),
+            nn.BatchNorm2d(ndf * 2),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*2) x 7 x 7
+            nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1),
+            nn.BatchNorm2d(ndf * 4),
+            nn.LeakyReLU(0.2, inplace=True),
+            # state size. (ndf*4) x 4 x 4
+            nn.Conv2d(ndf * 4, ndf * 2, 4, 2, 1),
+            nn.Flatten(),
+            nn.Linear(ndf * 2, 1),
+        )
+
+    def forward(self, x):
+        return self.model(x)
+
 class Weight_Clipper(object):
     def __init__(self, clip_value):
         self.clip_value = clip_value
@@ -164,9 +190,28 @@ class Decoder(nn.Module):
 
 
 if __name__ == '__main__':
-   
+    # test discriminator mnist
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    D = Discriminator_MNIST(ndf=32, nc=1).to(device)
+    x = torch.randn(16, 1, 28, 28).to(device)
+    print(D(x).shape)
+
+    from privacy import compute_empirical_bounds
+
+    # compute empirical bounds
+    c_g = compute_empirical_bounds(D, 0.01, (1, 1, 28, 28), ) 
+    print(c_g)
+
+    exit(0)
+
+
     # Test Encoder
     E = Encoder()
+
+    # print a convolutional layer
+    print(E.model[0].bias.shape)
+    exit(0)
+
     x = torch.randn(32, 1, 28, 28)
     print(E(x).shape)
 
