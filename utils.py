@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 # Export the namedtuple
 Args = namedtuple('Args', [
     'hidden', 'nz', 'ngf', 'nc', 'epsilon', 'delta', 'noise_multiplier', 
-    'c_p', 'lr', 'beta1', 'batch_size', 'n_d', 'n_g', 'activation'
+    'c_p', 'lr', 'beta1', 'batch_size', 'n_d', 'n_g', 'activation', 'lambda_gp'
 ])
 
 def get_input_args():
@@ -24,6 +24,7 @@ def get_input_args():
     parser.add_argument("--n_d", type=int, default=3)
     parser.add_argument("--n_g", type=int, default=int(1e4))
     parser.add_argument("--activation", type=str, default="LeakyReLU")
+    parser.add_argument("--lambda_gp", type=float, default=10.0)
     args = parser.parse_args()
 
     # Convert args to namedtuple
@@ -31,7 +32,7 @@ def get_input_args():
         hidden=args.hidden, nz=args.nz, ngf=args.ngf, nc=args.nc, 
         epsilon=args.epsilon, delta=args.delta, noise_multiplier=args.noise_multiplier, 
         c_p=args.c_p, lr=args.lr, beta1=args.beta1, batch_size=args.batch_size, 
-        n_d=args.n_d, n_g=args.n_g, activation=args.activation
+        n_d=args.n_d, n_g=args.n_g, activation=args.activation, lambda_gp=args.lambda_gp
     )
     return args
 
@@ -46,7 +47,7 @@ def generate_run_id(args):
 
 
 if __name__ == "__main__":
-    # python utils.py --hidden 64 16 --nz 100 --ngf 32 --nc 1 --epsilon 50.0 --delta 1e-6 --noise_multiplier 0.1 --c_p 0.01 --lr 1e-3 --beta1 0.5 --batch_size 32 --n_d 3 --n_g 10000 --activation leaky_relu
+    # python utils.py --hidden 64 16 --nz 100 --ngf 32 --nc 1 --epsilon 50.0 --delta 1e-6 --noise_multiplier 0.1 --c_p 0.01 --lr 1e-3 --beta1 0.5 --batch_size 32 --n_d 3 --n_g 10000 --activation leaky_relu --lambda_gp 10.0
 
     # Test get_input_args and generate_run_id
     args = get_input_args()

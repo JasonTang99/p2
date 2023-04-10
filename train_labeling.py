@@ -56,8 +56,8 @@ def train(run_fp, model, optimizer, train_loader, loss_fn, device, epochs=int(5e
                 if i % print_mod == 0:
                     print(f"{i} {loss.item()}", file=f)
 
-    print(f"Training time: {time() - start_time:.2f} seconds")
-    print(f"Training time: {time() - start_time:.2f} seconds", file=f)
+        print(f"Training time: {time() - start_time:.2f} seconds")
+        print(f"Training time: {time() - start_time:.2f} seconds", file=f)
 
     # Save model
     torch.save(model.state_dict(), f"{run_fp}/model.pt")
@@ -111,7 +111,7 @@ def main(lr, weight_decay, batch_size, epochs):
     train_loader = labeling_loader
 
     # Train model
-    train(run_fp, model, optimizer, train_loader, loss_fn, device, epochs, verbose=True)
+    train(run_fp, model, optimizer, train_loader, loss_fn, device, epochs, verbose=False)
 
     # Validate model on public and private datasets
     print("Validating on public dataset")

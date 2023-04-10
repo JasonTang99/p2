@@ -30,25 +30,25 @@ class Discriminator(nn.Module):
 
 # Convolutional Discriminator for MNIST image size (1, 28, 28)
 class Discriminator_MNIST(nn.Module):
-    def __init__(self, ndf=32, nc=1):
+    def __init__(self, ndf=32, nc=1, activation=nn.LeakyReLU(0.2, inplace=True)):
         super(Discriminator_MNIST, self).__init__()
         # 6 layer discriminator
         self.model = nn.Sequential(
             # input is (nc) x 28 x 28
             nn.Conv2d(nc, ndf, 4, 2, 1),
-            nn.LeakyReLU(0.2, inplace=True),
+            activation,
             # state size. (ndf) x 14 x 14
             nn.Conv2d(ndf, ndf * 2, 4, 2, 1),
-            nn.BatchNorm2d(ndf * 2),
-            nn.LeakyReLU(0.2, inplace=True),
+            activation,
             # state size. (ndf*2) x 7 x 7
             nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1),
-            nn.BatchNorm2d(ndf * 4),
-            nn.LeakyReLU(0.2, inplace=True),
+            activation,
             # state size. (ndf*4) x 4 x 4
-            nn.Conv2d(ndf * 4, ndf * 2, 4, 2, 1),
+            nn.Conv2d(ndf * 4, ndf, 4, 2, 1),
+            activation,
             nn.Flatten(),
-            nn.Linear(ndf * 2, 1),
+            nn.Linear(ndf, 1),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -192,15 +192,25 @@ class Decoder(nn.Module):
 if __name__ == '__main__':
     # test discriminator mnist
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    D = Discriminator_MNIST(ndf=32, nc=1).to(device)
+    D = Discriminator_MNIST(ndf=16, nc=1).to(device)
     x = torch.randn(16, 1, 28, 28).to(device)
     print(D(x).shape)
 
     from privacy import compute_empirical_bounds
 
     # compute empirical bounds
-    c_g = compute_empirical_bounds(D, 0.01, (1, 1, 28, 28), ) 
+    c_g = compute_empirical_bounds(D, 0.01)
     print(c_g)
+
+    from opacus.validators import ModuleValidator
+    errors = ModuleValidator.validate(D, strict=True)
+    print("Errors:", errors)
+
+    D_2 = Discriminator(hidden_sizes=[16, 16,], input_size=28**2).to(device)
+    c_g = compute_empirical_bounds(D_2, 0.01)
+    print("D_2", c_g)
+
+
 
     exit(0)
 
