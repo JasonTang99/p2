@@ -3,25 +3,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 from itertools import chain
 
+import numpy as np
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-class Discriminator(nn.Module):
-    """ Fully-connected Discriminator
+class Discriminator_FC(nn.Module):
+    """ Fully-connected Discriminator_FC
     Inputs:
     - hidden_sizes: list of hidden layer sizes
     - input_size: size of the input vector
     """
     def __init__(self, hidden_sizes=[64, 16], input_size=28**2, activation=nn.LeakyReLU(0.2, inplace=True)):
-        super(Discriminator, self).__init__()
+        super(Discriminator_FC, self).__init__()
         self.input_size = input_size
         self.model = nn.Sequential(
-            nn.Linear(input_size, hidden_sizes[0], bias=False),
+            nn.Linear(input_size, hidden_sizes[0]),
             activation,
             *list(chain.from_iterable([[
-                nn.Linear(hidden_sizes[i], hidden_sizes[i+1], bias=False), 
+                nn.Linear(hidden_sizes[i], hidden_sizes[i+1]), 
                 activation
             ] for i in range(len(hidden_sizes) - 1)])),
-            nn.Linear(hidden_sizes[-1], 1, bias=False),
+            nn.Linear(hidden_sizes[-1], 1),
             nn.Sigmoid()
         )
 
@@ -30,20 +32,20 @@ class Discriminator(nn.Module):
         x = x.view(-1, self.input_size)
         return self.model(x)
 
-# Convolutional Discriminator for MNIST image size (1, 28, 28)
+# Convolutional Discriminator_FC for MNIST image size (1, 28, 28)
 class Discriminator_MNIST(nn.Module):
     def __init__(self, ndf=32, nc=1, activation=nn.LeakyReLU(0.2, inplace=True)):
         super(Discriminator_MNIST, self).__init__()
         # 4 layer discriminator
         self.model = nn.Sequential(
             # input is (nc) x 28 x 28
-            nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+            nn.Conv2d(nc, ndf, 4, 2, 1),
             activation,
             # state size. (ndf) x 14 x 14
-            nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+            nn.Conv2d(ndf, ndf * 2, 4, 2, 1),
             activation,
             # state size. (ndf*2) x 7 x 7
-            nn.Conv2d(ndf * 2, 1, 7, 1, 0, bias=False),
+            nn.Conv2d(ndf * 2, 1, 7, 1, 0),
             nn.Sigmoid()
         )
 
@@ -72,23 +74,23 @@ class Generator_MNIST(nn.Module):
         self.nz = nz
         self.model = nn.Sequential(
             # input is Z, going into a convolution
-            nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0, bias=False),
+            nn.ConvTranspose2d( nz, ngf * 8, 4, 1, 0),
             nn.BatchNorm2d(ngf * 8),
             nn.ReLU(True),
             # state size. (ngf*8) x 4 x 4
-            nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d(ngf * 8, ngf * 4, 4, 2, 1),
             nn.BatchNorm2d(ngf * 4),
             nn.ReLU(True),
             # state size. (ngf*4) x 8 x 8
-            nn.ConvTranspose2d( ngf * 4, ngf * 2, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d( ngf * 4, ngf * 2, 4, 2, 1),
             nn.BatchNorm2d(ngf * 2),
             nn.ReLU(True),
             # state size. (ngf*2) x 16 x 16
-            nn.ConvTranspose2d( ngf * 2, ngf, 4, 2, 1, bias=False),
+            nn.ConvTranspose2d( ngf * 2, ngf, 4, 2, 1),
             nn.BatchNorm2d(ngf),
             nn.ReLU(True),
             # state size. (ngf) x 32 x 32
-            nn.Conv2d(ngf, nc, kernel_size=5, stride=1, padding=0, bias=False),
+            nn.Conv2d(ngf, nc, kernel_size=5, stride=1, padding=0),
             nn.Sigmoid()
             # state size. (nc) x 28 x 28
         )
@@ -106,26 +108,27 @@ class Generator_FC(nn.Module):
     - hidden_sizes: list of hidden layer sizes
     - output_size: size of the output vector
     """
-    def __init__(self, nz=100, hidden_sizes=[64, 16], output_size=28**2):
+    def __init__(self, nz=100, hidden_sizes=[64, 16], output_size=(1, 28, 28)):
         super(Generator_FC, self).__init__()
         self.nz = nz
         self.output_size = output_size
 
         self.model = nn.Sequential(
-            nn.Linear(nz, hidden_sizes[0], bias=False),
+            nn.Linear(nz, hidden_sizes[0]),
             nn.ReLU(True),
             nn.BatchNorm1d(hidden_sizes[0]),
             *list(chain.from_iterable([[
-                nn.Linear(hidden_sizes[i-1], hidden_sizes[i], bias=False),
+                nn.Linear(hidden_sizes[i-1], hidden_sizes[i]),
                 nn.ReLU(True), 
                 nn.BatchNorm1d(hidden_sizes[i])
             ] for i in range(1, len(hidden_sizes))])),
-            nn.Linear(hidden_sizes[-1], output_size, bias=False),
+            nn.Linear(hidden_sizes[-1], np.prod(output_size)),
         )
 
     def forward(self, x):
         # (batch_size, nz) -> (batch_size, output_size)
-        return self.model(x)
+        out = self.model(x)
+        return out.view(-1, *self.output_size)
 
 # Setup Generator Weight Initialization
 def G_weights_init(m):
@@ -209,16 +212,16 @@ if __name__ == '__main__':
     errors = ModuleValidator.validate(D, strict=True)
     print("Errors:", errors)
 
-    D_2 = Discriminator(hidden_sizes=[16, 16,], input_size=28**2).to(device)
+    D_2 = Discriminator_FC(hidden_sizes=[16, 16,], input_size=28**2).to(device)
     c_g = compute_empirical_bounds(D_2, 0.01)
     print("D_2", c_g)
 
 
     # Load one of each model
     D = Discriminator_MNIST().to(device)
-    D_2 = Discriminator().to(device)
+    D_2 = Discriminator_FC(hidden_sizes=[128]).to(device)
     G = Generator_MNIST().to(device)
-    G_2 = Generator_FC().to(device)
+    G_2 = Generator_FC(hidden_sizes=[128]).to(device)
 
     Enc = Encoder(latent_size=100).to(device)
     Dec = Decoder(latent_size=100).to(device)
@@ -235,8 +238,8 @@ if __name__ == '__main__':
 
     exit(0)
 
-    # Test Discriminator
-    D = Discriminator(hidden_sizes=[64, 16, 16, 16], input_size=28**2)
+    # Test Discriminator_FC
+    D = Discriminator_FC(hidden_sizes=[64, 16, 16, 16], input_size=28**2)
     x = torch.randn(1, 28**2)
     print(D(x))
 

@@ -23,6 +23,7 @@ warnings.filterwarnings("ignore")
 def train(enc, dec, train_loader, lr=5e-4, epochs=1000, verbose=True):
     """Training process"""
     run_fp = "runs/autoencoder"
+    os.makedirs(run_fp, exist_ok=True)
 
     # Check if anything inside run_fp exists
     if os.path.exists(f"{run_fp}/loss.txt"):
@@ -54,9 +55,24 @@ def train(enc, dec, train_loader, lr=5e-4, epochs=1000, verbose=True):
                 loss.backward()
                 optimizer.step()
                 
-                if verbose and j % 10 == 0:
+                if verbose and j % 100 == 0:
                     print(f"Epoch {i} Batch {j} Loss {loss.item()}")
-                    f.write(f"{i} {j} {loss.item()}")
+                
+                f.write(f"{i} {j} {loss.item()}")
+            
+            if i != 0 and i % 200 == 0:
+                # Save model
+                torch.save(enc.state_dict(), f"{run_fp}/enc_{i}.pth")
+                torch.save(dec.state_dict(), f"{run_fp}/dec_{i}.pth")
+    
+        # Track time
+        end_time = time()
+        print(f"Training took {end_time - start_time} seconds")
+        f.write(f"Training took {end_time - start_time} seconds")
+
+    # Save model
+    torch.save(enc.state_dict(), f"{run_fp}/enc.pth")
+    torch.save(dec.state_dict(), f"{run_fp}/dec.pth")
 
 if __name__ == "__main__":
     # Data
@@ -68,4 +84,4 @@ if __name__ == "__main__":
     dec = Decoder(latent_size=100)
 
     # Train
-    train(enc, dec, train_loader, lr=5e-4, epochs=1000, verbose=True)
+    train(enc, dec, train_loader, lr=5e-4, epochs=1001, verbose=True)

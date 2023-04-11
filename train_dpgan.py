@@ -6,7 +6,7 @@ import os
 from time import time
 
 from utils import generate_run_id, get_input_args, Args
-from models import Discriminator, Discriminator_MNIST, Generator_MNIST, Weight_Clipper, G_weights_init
+from models import Discriminator_FC, Discriminator_MNIST, Generator_MNIST, Weight_Clipper, G_weights_init, Generator_FC
 from data import load_MNIST
 from privacy import compute_ReLU_bounds, compute_Tanh_bounds, compute_empirical_bounds
 
@@ -46,7 +46,7 @@ def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, d
     
     with open(f"{run_fp}/loss.txt", "a") as f:
         for i in tqdm(range(args.n_g)):
-            # Update Discriminator
+            # Update Discriminator_FC
             if privacy_engine is not None:
                 netD.enable_hooks()
             netD.train()
@@ -58,7 +58,7 @@ def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, d
                 noise = torch.randn(real_data.size(0), args.nz).to(device)
                 fake_data = netG(noise)
 
-                # Run Discriminator
+                # Run Discriminator_FC
                 real_output = netD(real_data)
                 fake_output = netD(fake_data)
 
@@ -72,10 +72,16 @@ def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, d
                     x_hat = eps * real_data + (1 - eps) * fake_data
                     x_hat_output = netD(x_hat)
 
-                    grad_x_hat = torch.autograd.grad(outputs=x_hat_output, inputs=x_hat,
-                    grad_outputs=torch.ones_like(x_hat_output), create_graph=False)[0]
-                    grad_x_hat = grad_x_hat.view(grad_x_hat.size(0), -1)
-                    grad_x_hat_norm = torch.sqrt(torch.sum(grad_x_hat ** 2, dim=1))
+                    grad_x_hat = torch.autograd.grad(
+                        outputs=x_hat_output, 
+                        inputs=x_hat,
+                        grad_outputs=torch.ones_like(x_hat_output), 
+                        create_graph=False
+                    )[0]
+                    grad_x_hat_norm = torch.sqrt(torch.sum(
+                        grad_x_hat.view(grad_x_hat.size(0), -1) ** 2, 
+                        dim=1
+                    ))
                     grad_penalty = args.lambda_gp * torch.mean((grad_x_hat_norm - 1) ** 2)
                     
                     d_loss = -torch.mean(real_output) + torch.mean(fake_output) + grad_penalty
@@ -154,7 +160,7 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
         else:
             run_id = "private_" + run_id
 
-    run_fp = os.path.join('runs/', run_id)
+    run_fp = os.path.join('runs_gen_fc/', run_id)
     os.makedirs(run_fp, exist_ok=True)
 
     # Setup models
@@ -167,17 +173,18 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
         raise ValueError("Activation function not supported")
     
     if args.hidden is not None:
-        netD = Discriminator(args.hidden, input_size=784, activation=activation).to(device)
+        netD = Discriminator_FC(args.hidden, input_size=784, activation=activation).to(device)
     else:
         # Use CNN
         netD = Discriminator_MNIST(ndf=16, nc=args.nc, activation=activation).to(device)
     print(netD)
 
-    netG = Generator_MNIST(nz=args.nz, ngf=args.ngf, nc=args.nc).to(device)
-    netG.apply(G_weights_init)
+    # netG = Generator_MNIST(nz=args.nz, ngf=args.ngf, nc=args.nc).to(device)
+    # netG.apply(G_weights_init)
+    netG = Generator_FC(hidden_sizes=[128], nz=args.nz, output_size=(1, 28, 28)).to(device)
 
     # For Latent Space 
-    # D = Discriminator(hidden_sizes=[16, 16], input_size=100).to(device)
+    # D = Discriminator_FC(hidden_sizes=[16, 16], input_size=100).to(device)
     # G = Generator_FC(nz=32, hidden_sizes=[16, 32], output_size=100).to(device)
 
     # Privacy Validation
@@ -195,9 +202,9 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
     print("Gradient clip:", c_g)
     
     # Setup optimizers
-    weight_decay = 1e-5
-    optimizerD = optim.Adam(netD.parameters(), lr=args.lr, betas=(args.beta1, 0.999), weight_decay=weight_decay)
-    optimizerG = optim.Adam(netG.parameters(), lr=args.lr, betas=(args.beta1, 0.999), weight_decay=weight_decay)
+    weight_decay = 1e-6
+    optimizerD = optim.Adam(netD.parameters(), lr=args.lr, betas=(args.beta1, 0.9), weight_decay=weight_decay)
+    optimizerG = optim.Adam(netG.parameters(), lr=args.lr, betas=(args.beta1, 0.9), weight_decay=weight_decay)
 
     # Setup MNIST dataset using load_MNIST
     labeling_loader, public_loader, private_loader, test_loader = load_MNIST(args.batch_size)
@@ -232,27 +239,45 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
 def train_non_private():
     # Non-private model on private data
     lambda_gps = [10.0, 0.0]
-    for lambda_gp in lambda_gps:
-        args = Args(
-            # Model Parameters
-            hidden=None, nz=100, ngf=32, nc=1, activation="LeakyReLU",
-            # Privacy Parameters
-            epsilon=float("inf"), delta=1e-6, noise_multiplier=0.0, c_p=0.01, 
-            # Training Parameters
-            lr=1e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(1e5), lambda_gp=lambda_gp
-        )
-        main(args, private=False, use_public_data=False)
+    hiddens = [[128], None]    
+    # hiddens = [[16, 12, 4], None]
+    c_ps = [0.02, 0.01, 0.005]
+    n_ds = [5, 3]
+    n_zs = [100, 50]
+    lrs = [5e-5, 5e-4]
+
+    # for hidden in hiddens:
+    #     for lambda_gp in lambda_gps:
+    #         args = Args(
+    #             # Model Parameters
+    #             hidden=hidden, nz=100, ngf=32, nc=1, activation="LeakyReLU",
+    #             # Privacy Parameters
+    #             epsilon=float("inf"), delta=1e-6, noise_multiplier=0.0, c_p=0.01, 
+    #             # Training Parameters
+    #             lr=1e-4, beta1=0.5, batch_size=64, n_d=5, n_g=int(1e5), lambda_gp=lambda_gp
+    #         )
+    #         main(args, private=False, use_public_data=False)
+
 
     # Non-private model on public data (using improved WGAN)
-    args = Args(
-        # Model Parameters
-        hidden=None, nz=100, ngf=32, nc=1, activation="LeakyReLU",
-        # Privacy Parameters
-        epsilon=float("inf"), delta=1e-6, noise_multiplier=0.0, c_p=0.01, 
-        # Training Parameters
-        lr=5e-5, beta1=0.5, batch_size=64, n_d=5, n_g=int(3e5), lambda_gp=10.0
-    )
-    main(args, private=False, use_public_data=True)
+    for hidden in hiddens:
+        for n_z in n_zs:
+            for lr in lrs:
+                for n_d in n_ds:
+                    for lambda_gp in lambda_gps:
+                        for c_p in c_ps:
+                            if lambda_gp != 0.0:
+                                c_p = 0.0
+                            
+                            args = Args(
+                                # Model Parameters
+                                hidden=hidden, nz=n_z, ngf=32, nc=1, activation="LeakyReLU",
+                                # Privacy Parameters
+                                epsilon=float("inf"), delta=1e-6, noise_multiplier=0.0, c_p=c_p, 
+                                # Training Parameters
+                                lr=lr, beta1=0.0, batch_size=64, n_d=n_d, n_g=int(1e5), lambda_gp=lambda_gp
+                            )
+                            main(args, private=False, use_public_data=True)
 
 def grid_search():
     # Private model Hyperparameter Search
@@ -281,5 +306,5 @@ if __name__ == "__main__":
     # main(args)
 
     train_non_private()
-    grid_search()
+    # grid_search()
 

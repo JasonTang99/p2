@@ -64,7 +64,7 @@ def load_MNIST(batch_size):
     return labeling_loader, public_loader, private_loader, test_loader
 
 # Load latent space dataset
-def load_latent_space(batch_size, data_fp="data/wgan_latent_dataset.pt"):
+def load_latent(batch_size, data_fp="data/wgan_latent_dataset.pt"):
     """Load latent space dataset
     """
     dataset = torch.load(data_fp)
@@ -74,12 +74,12 @@ def load_latent_space(batch_size, data_fp="data/wgan_latent_dataset.pt"):
 
 if __name__ == "__main__":
     # Test latent space
-    loader = load_latent_space(64)
+    loader = load_latent(64)
     print("Latent space dataset size:", len(loader.dataset))
     print("Latent space sample shape:", next(iter(loader))[0].shape)
 
-    from models import Discriminator, Generator_FC
-    D = Discriminator(hidden_sizes=[16, 16], input_size=100).to(device)
+    from models import Discriminator_FC, Generator_FC
+    D = Discriminator_FC(hidden_sizes=[16, 16], input_size=100).to(device)
     G = Generator_FC(nz=32, hidden_sizes=[16, 32], output_size=100).to(device)
 
     for i, data in enumerate(loader):
