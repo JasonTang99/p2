@@ -100,24 +100,11 @@ def main(args, private=True, c_g_mult=1.0, latent_type="ae_enc"):
     os.makedirs(run_fp, exist_ok=True)
 
     print(f"================= Run ID: {run_id} =================")
-
-    if private:
-        # Setup Privacy Engine
-        privacy_engine = PrivacyEngine()
-        netD, optimizerD, train_loader = privacy_engine.make_private(
-            module=netD,
-            optimizer=optimizerD,
-            data_loader=train_loader,
-            max_grad_norm=c_g,
-            noise_multiplier=args.noise_multiplier,
-        )
-    else:
-        privacy_engine = None
     
     verbose = False
     # verbose = True
     train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, 
-        privacy_engine, verbose=verbose)
+        c_g, private, verbose=verbose)
 
 
 def grid_search():

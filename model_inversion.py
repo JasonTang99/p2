@@ -202,6 +202,10 @@ def run_ae(enc_fp, train_loader, save_fp="data/ae_enc_latent_dataset.pt"):
     torch.save(latent_dataset, save_fp)
     print(f"Saved {latent_dataset.tensors[0].shape[0]} latent vectors")
 
+enc_fp = "runs/autoencoder_mini/enc.pth"
+dec_fp = "runs/autoencoder_mini/dec.pth"
+gen_fp = "runs_gen_fc_3/public_256_100_32_1_inf_1e-06_0.0_0.01_5e-05_0.0_64_3_500000_LeakyReLU_0.0/netG_470000.pt"
+
 
 if __name__ == "__main__":
     # Load data
@@ -212,15 +216,12 @@ if __name__ == "__main__":
 
     # Run Autoencoder Encoder if needed
     if not os.path.exists("data/ae_enc_latent_dataset.pt"):
-        enc_fp = "runs/autoencoder_mini/enc.pth"
         run_ae(enc_fp, private_loader, "data/ae_enc_latent_dataset.pt")
 
     # Run Autoencoder Gradient Ascent
     if not os.path.exists("data/ae_grad_latent_dataset.pt"):
-        dec_fp = "runs/autoencoder_mini/dec.pth"
         run_ae_grad(dec_fp, private_loader, "data/ae_grad_latent_dataset.pt")
 
     # Run WGAN
     if not os.path.exists("data/wgan_latent_dataset.pt"):
-        gen_fp = "runs_gen_fc_3/public_256_100_32_1_inf_1e-06_0.0_0.01_5e-05_0.0_64_3_500000_LeakyReLU_0.0/netG_470000.pt"
         run_wgan(gen_fp, private_loader, "data/wgan_latent_dataset.pt")

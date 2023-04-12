@@ -8,3 +8,4 @@ runs*
 wgan-gp*
 pytorch-fid*
 .vscode/*
+tmp/*

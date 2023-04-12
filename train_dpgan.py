@@ -29,137 +29,162 @@ warnings.filterwarnings("ignore")
 
 
 def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, 
-        privacy_engine=None, verbose=False):
+        c_g, private=True, verbose=False):
     """Training process
     if privacy_engine is not None, then train with DP
     improved: if True, use improved WGAN training process
     """
+    epoch = 0
+    privacy_engine = PrivacyEngine()
+
     # Check if anything inside run_fp exists
     if os.path.exists(f"{run_fp}/loss.txt"):
-        print(f"{run_fp} already exists. Skipping...")
-        return
-    
+        # Extract last non-empty line
+        with open(f"{run_fp}/loss.txt", "r") as f:
+            last_line = f.readlines()[-1]
+            last_line = last_line.strip()
+            while last_line == "":
+                last_line = f.readlines()[-1]
+                last_line = last_line.strip()
+        assert "Training time:" in last_line
+        # Extract epoch number
+        epoch = int(last_line.split(" ")[0])
+        print(f"Restarting from epoch: {epoch}")
+
+        if epoch >= args.n_g:
+            print("Training already finished, skipping...")
+            return
+
+        # Load accountant
+        if private:
+            privacy_engine.accountant = torch.load(f"{run_fp}/accountant_{epoch}.pth")
+        
+        # Load models
+        netD.load_state_dict(torch.load(f"{run_fp}/netD_{epoch}.pt"))
+        netG.load_state_dict(torch.load(f"{run_fp}/netG_{epoch}.pt"))
+
+    if private:
+        # Setup Privacy Engine
+        netD, optimizerD, train_loader = privacy_engine.make_private(
+            module=netD,
+            optimizer=optimizerD,
+            data_loader=train_loader,
+            max_grad_norm=c_g,
+            noise_multiplier=args.noise_multiplier,
+        )
+
     # Track time
     start_time = time()
     print_mod = 10
     save_mod = 2000
     clipper = Weight_Clipper(args.c_p)
     
-    with open(f"{run_fp}/loss.txt", "a") as f:
-        for i in tqdm(range(args.n_g)):
-            # Update Discriminator_FC
-            if privacy_engine is not None:
-                netD.enable_hooks()
-            netD.train()
-            netG.eval()
+    lines_to_write = []
+    tdqm_iter = tqdm(range(epoch, args.n_g))
+    while epoch < args.n_g:
+        tdqm_iter.update(1)
+        # Update Discriminator_FC
+        if private:
+            netD.enable_hooks()
+        netD.train()
+        netG.eval()
 
-            for j in range(args.n_d):
-                # Generate real and fake
-                real_data = next(iter(train_loader))[0].to(device)
-                noise = torch.randn(real_data.size(0), args.nz).to(device)
-                fake_data = netG(noise)
+        for j in range(args.n_d):
+            # Generate real and fake
+            real_data = next(iter(train_loader))[0].to(device)
+            noise = torch.randn(real_data.size(0), args.nz).to(device)
+            fake_data = netG(noise)
 
-                # Run Discriminator_FC
-                real_output = netD(real_data)
-                fake_output = netD(fake_data)
+            # Run Discriminator_FC
+            real_output = netD(real_data)
+            fake_output = netD(fake_data)
 
-                # Calculate loss
-                if args.lambda_gp == 0.0:
-                    # Standard WGAN loss
-                    d_loss = -torch.mean(real_output) + torch.mean(fake_output)
-                else:
-                    print("Using improved WGAN loss")
-                    # Improved WGAN-GP loss
-                    alpha = torch.rand(real_data.size(0), 1, 1, 1).to(device)
-                    alpha = alpha.expand(real_data.size())
+            # Calculate loss
+            if args.lambda_gp == 0.0:
+                # Standard WGAN loss
+                d_loss = -torch.mean(real_output) + torch.mean(fake_output)
+            else:
+                print("Using improved WGAN loss")
+                # Improved WGAN-GP loss
+                alpha = torch.rand(real_data.size(0), 1, 1, 1).to(device)
+                alpha = alpha.expand(real_data.size())
 
-                    interpolates = alpha * real_data + ((1 - alpha) * fake_data)
-                    interpolates = autograd.Variable(interpolates, requires_grad=True)
-                    disc_interpolates = netD(interpolates)
+                interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+                interpolates = autograd.Variable(interpolates, requires_grad=True)
+                disc_interpolates = netD(interpolates)
 
-                    gradients = autograd.grad(
-                        outputs=disc_interpolates,
-                        inputs=interpolates,
-                        grad_outputs=torch.ones_like(disc_interpolates),
-                        create_graph=True, 
-                        retain_graph=True, 
-                        only_inputs=True
-                    )[0]
+                gradients = autograd.grad(
+                    outputs=disc_interpolates,
+                    inputs=interpolates,
+                    grad_outputs=torch.ones_like(disc_interpolates),
+                    create_graph=True, 
+                    retain_graph=True, 
+                    only_inputs=True
+                )[0]
 
-                    grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * args.lambda_gp
-                    
-                    # eps = torch.rand(real_data.size(0), 1, 1, 1).to(device)
-                    # x_hat = eps * real_data + (1 - eps) * fake_data
-                    # x_hat_output = netD(x_hat)
+                grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * args.lambda_gp
+                d_loss = -torch.mean(real_output) + torch.mean(fake_output) + grad_penalty
 
-                    # grad_x_hat = torch.autograd.grad(
-                    #     outputs=x_hat_output, 
-                    #     inputs=x_hat,
-                    #     grad_outputs=torch.ones_like(x_hat_output), 
-                    #     create_graph=False
-                    # )[0]
-                    # grad_x_hat_norm = torch.sqrt(torch.sum(
-                    #     grad_x_hat.view(grad_x_hat.size(0), -1) ** 2, 
-                    #     dim=1
-                    # ))
-                    # grad_penalty = args.lambda_gp * torch.mean((grad_x_hat_norm - 1) ** 2)
-                    
-                    d_loss = -torch.mean(real_output) + torch.mean(fake_output) + grad_penalty
+            optimizerD.zero_grad()
+            d_loss.backward()
+            optimizerD.step()
 
-                optimizerD.zero_grad()
-                d_loss.backward()
-                optimizerD.step()
-
-                # Clip weights in discriminator (if not using WGAN-GP)
-                if args.lambda_gp == 0.0:
-                    netD.apply(clipper)
-
-                if verbose:
-                    print(f"Epoch: {i} ({j}/{args.n_d}) D_loss: {d_loss.item()} \
-                        eps: {privacy_engine.get_epsilon(args.delta) if privacy_engine is not None else 0}")
-                if i % print_mod == 0:
-                    print(f"{i}.{j}, {d_loss.item()}", file=f)
-
-            if privacy_engine is not None:
-                netD.disable_hooks()
-            netD.eval()
-            netG.train()
-
-            # Update Generator
-            noise = torch.randn(args.batch_size, args.nz).to(device)
-            fake_output = netD(netG(noise))
-            g_loss = -torch.mean(fake_output)
-
-            # Update Generator
-            optimizerG.zero_grad()
-            g_loss.backward()
-            optimizerG.step()
+            # Clip weights in discriminator (if not using WGAN-GP)
+            if args.lambda_gp == 0.0:
+                netD.apply(clipper)
 
             if verbose:
-                print(f"Epoch: {i} G_loss: {g_loss.item()} \
-                    eps: {privacy_engine.get_epsilon(args.delta) if privacy_engine is not None else 0}")
-            if i % print_mod == 0:
-                print(f"{i}, {g_loss.item()}", file=f)
+                print(f"Epoch: {epoch} ({j}/{args.n_d}) D_loss: {d_loss.item()} \
+                    eps: {privacy_engine.get_epsilon(args.delta) if private else 0}")
+            if epoch % print_mod == 0:
+                lines_to_write.append(f"{epoch}.{j}, {d_loss.item()}")
 
-            if (i+1) % save_mod == 0:
-                # Non-private model
-                if privacy_engine is None:
-                    torch.save(netG.state_dict(), f"{run_fp}/netG_{i+1}.pt")
-                    torch.save(netD.state_dict(), f"{run_fp}/netD_{i+1}.pt")
-                    continue
-                
+        if private:
+            netD.disable_hooks()
+        netD.eval()
+        netG.train()
+
+        # Update Generator
+        noise = torch.randn(args.batch_size, args.nz).to(device)
+        fake_output = netD(netG(noise))
+        g_loss = -torch.mean(fake_output)
+
+        # Update Generator
+        optimizerG.zero_grad()
+        g_loss.backward()
+        optimizerG.step()
+
+        if verbose:
+            print(f"Epoch: {epoch} G_loss: {g_loss.item()} \
+                eps: {privacy_engine.get_epsilon(args.delta) if private else 0}")
+        if epoch % print_mod == 0:
+            lines_to_write.append(f"{epoch}, {g_loss.item()}")
+
+        epoch += 1
+        if epoch % save_mod == 0:
+            # Non-private model
+            if not private:
+                torch.save(netG.state_dict(), f"{run_fp}/netG_{epoch}.pt")
+                torch.save(netD.state_dict(), f"{run_fp}/netD_{epoch}.pt")
+            else:
+                torch.save(netG.state_dict(), f"{run_fp}/netG_{epoch}.pt")
+                torch.save(netD._module.state_dict(), f"{run_fp}/netD_{epoch}.pt")
+                torch.save(privacy_engine.accountant, f"{run_fp}/accountant_{epoch}.pth")
+
+            with open(f"{run_fp}/loss.txt", "a") as f:
                 # Private model
-                # eps = privacy_engine.get_epsilon(args.delta)
-                # print(f"Saving model at iteration {i+1}, epsilon {eps}")
-                # print(f"{i+1}: epsilon {eps}", file=f)
+                # if private:
+                #     eps = privacy_engine.get_epsilon(args.delta)
+                #     print(f"Saving model at iteration {epoch}, epsilon {eps}")
+                #     print(f"{epoch}: epsilon {eps}", file=f)
                 
-                print(f"{i+1} Training time: {time() - start_time}", file=f)
-                torch.save(netG.state_dict(), f"{run_fp}/netG_{i+1}.pt")
-                torch.save(netD._module.state_dict(), f"{run_fp}/netD_{i+1}.pt")
-                torch.save(privacy_engine.accountant, f"{run_fp}/accountant_{i+1}.pth")
-        
-        # Save train time
-        print(f"Training time: {time() - start_time}", file=f)
+                for line in lines_to_write:
+                    print(line, file=f)
+                lines_to_write = []
+                print(f"{epoch} Training time: {time() - start_time}", file=f)
+    
+    # Save train time
+    with open(f"{run_fp}/loss.txt", "a") as f:
         print(f"Training time: {time() - start_time}")
 
 
@@ -203,10 +228,6 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
     # netG.apply(G_weights_init)
     netG = Generator_FC(hidden_sizes=[256], nz=args.nz, output_size=(1, 28, 28)).to(device)
 
-    # For Latent Space 
-    # D = Discriminator_FC(hidden_sizes=[16, 16], input_size=100).to(device)
-    # G = Generator_FC(nz=32, hidden_sizes=[16, 32], output_size=100).to(device)
-
     # Privacy Validation
     ModuleValidator.validate(netD, strict=True)
 
@@ -233,27 +254,11 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
         train_loader = public_loader
     else:
         train_loader = private_loader
-
-    if private:
-        # Setup Privacy Engine
-        privacy_engine = PrivacyEngine()
-        netD, optimizerD, train_loader = privacy_engine.make_private(
-            module=netD,
-            optimizer=optimizerD,
-            data_loader=train_loader,
-            max_grad_norm=c_g,
-            noise_multiplier=args.noise_multiplier,
-        )
-        print(
-            f"Model:{type(netD)}, \nOptimizer:{type(optimizerD)}, \nDataLoader:{type(train_loader)}"
-        )
-    else:
-        privacy_engine = None
     
     verbose = False
     # verbose = True
     train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, device, 
-        privacy_engine, verbose=verbose)
+        c_g, private, verbose=verbose)
 
 
 def train_non_private():
