@@ -59,7 +59,6 @@ def main(args, private=True, c_g_mult=1.0):
     print(netD)
     
     netG = Generator_FC(nz=32, hidden_sizes=[16, 32], output_size=100).to(device)
-    netG.apply(G_weights_init)
 
     # Privacy Validation
     ModuleValidator.validate(netD, strict=True)

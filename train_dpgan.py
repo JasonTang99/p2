@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data as data
+import torch.autograd as autograd
 
 import torchvision
 import torchvision.transforms as transforms
@@ -68,21 +69,39 @@ def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, d
                     d_loss = -torch.mean(real_output) + torch.mean(fake_output)
                 else:
                     # Improved WGAN-GP loss
-                    eps = torch.rand(real_data.size(0), 1, 1, 1).to(device)
-                    x_hat = eps * real_data + (1 - eps) * fake_data
-                    x_hat_output = netD(x_hat)
+                    alpha = torch.rand(real_data.size(0), 1, 1, 1).to(device)
+                    alpha = alpha.expand(real_data.size())
 
-                    grad_x_hat = torch.autograd.grad(
-                        outputs=x_hat_output, 
-                        inputs=x_hat,
-                        grad_outputs=torch.ones_like(x_hat_output), 
-                        create_graph=False
+                    interpolates = alpha * real_data + ((1 - alpha) * fake_data)
+                    interpolates = autograd.Variable(interpolates, requires_grad=True)
+                    disc_interpolates = netD(interpolates)
+
+                    gradients = autograd.grad(
+                        outputs=disc_interpolates,
+                        inputs=interpolates,
+                        grad_outputs=torch.ones_like(disc_interpolates),
+                        create_graph=True, 
+                        retain_graph=True, 
+                        only_inputs=True
                     )[0]
-                    grad_x_hat_norm = torch.sqrt(torch.sum(
-                        grad_x_hat.view(grad_x_hat.size(0), -1) ** 2, 
-                        dim=1
-                    ))
-                    grad_penalty = args.lambda_gp * torch.mean((grad_x_hat_norm - 1) ** 2)
+
+                    grad_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean() * args.lambda_gp
+                    
+                    # eps = torch.rand(real_data.size(0), 1, 1, 1).to(device)
+                    # x_hat = eps * real_data + (1 - eps) * fake_data
+                    # x_hat_output = netD(x_hat)
+
+                    # grad_x_hat = torch.autograd.grad(
+                    #     outputs=x_hat_output, 
+                    #     inputs=x_hat,
+                    #     grad_outputs=torch.ones_like(x_hat_output), 
+                    #     create_graph=False
+                    # )[0]
+                    # grad_x_hat_norm = torch.sqrt(torch.sum(
+                    #     grad_x_hat.view(grad_x_hat.size(0), -1) ** 2, 
+                    #     dim=1
+                    # ))
+                    # grad_penalty = args.lambda_gp * torch.mean((grad_x_hat_norm - 1) ** 2)
                     
                     d_loss = -torch.mean(real_output) + torch.mean(fake_output) + grad_penalty
 
@@ -160,7 +179,7 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
         else:
             run_id = "private_" + run_id
 
-    run_fp = os.path.join('runs_gen_fc/', run_id)
+    run_fp = os.path.join('runs_gen_fc_3/', run_id)
     os.makedirs(run_fp, exist_ok=True)
 
     # Setup models
@@ -181,7 +200,7 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
 
     # netG = Generator_MNIST(nz=args.nz, ngf=args.ngf, nc=args.nc).to(device)
     # netG.apply(G_weights_init)
-    netG = Generator_FC(hidden_sizes=[128], nz=args.nz, output_size=(1, 28, 28)).to(device)
+    netG = Generator_FC(hidden_sizes=[256], nz=args.nz, output_size=(1, 28, 28)).to(device)
 
     # For Latent Space 
     # D = Discriminator_FC(hidden_sizes=[16, 16], input_size=100).to(device)
@@ -237,14 +256,25 @@ def main(args, private=True, use_public_data=False, c_g_mult=1.0):
 
 
 def train_non_private():
+    args = Args(hidden=[256], nz=100, ngf=32, nc=1, epsilon='inf', delta=1e-06, noise_multiplier=0.0, c_p=0.01, lr=5e-05, beta1=0.0, batch_size=64, n_d=3, n_g=int(5e5), activation='LeakyReLU', lambda_gp=0.0)
+    main(args, private=False, use_public_data=True)
+
+    exit(0)
+
     # Non-private model on private data
-    lambda_gps = [10.0, 0.0]
-    hiddens = [[128], None]    
-    # hiddens = [[16, 12, 4], None]
-    c_ps = [0.02, 0.01, 0.005]
-    n_ds = [5, 3]
-    n_zs = [100, 50]
-    lrs = [5e-5, 5e-4]
+    # lambda_gps = [1.0, 0.0]
+    # hiddens = [[128], None]    
+    # c_ps = [0.02, 0.01, 0.005]
+    # n_ds = [5, 3]
+    # n_zs = [100, 50]
+    # lrs = [5e-5, 5e-4]
+
+    lambda_gps = [0.0]
+    hiddens = [[128, 128]]    
+    c_ps = [0.01, 0.005]
+    n_ds = [4]
+    n_zs = [100]
+    lrs = [1e-4]
 
     # for hidden in hiddens:
     #     for lambda_gp in lambda_gps:
@@ -275,7 +305,7 @@ def train_non_private():
                                 # Privacy Parameters
                                 epsilon=float("inf"), delta=1e-6, noise_multiplier=0.0, c_p=c_p, 
                                 # Training Parameters
-                                lr=lr, beta1=0.0, batch_size=64, n_d=n_d, n_g=int(1e5), lambda_gp=lambda_gp
+                                lr=lr, beta1=0.0, batch_size=64, n_d=n_d, n_g=int(2e5), lambda_gp=lambda_gp
                             )
                             main(args, private=False, use_public_data=True)
 

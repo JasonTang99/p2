@@ -4,7 +4,7 @@ from tqdm import tqdm
 import os
 from time import time
 
-from models import Generator_MNIST
+from models import Generator_MNIST, Encoder
 from data import load_MNIST
 
 import torch
@@ -59,7 +59,7 @@ def gradient_ascent(model, imgs, latent_dim, lr=1e-2, iterations=1000, z_0_mult=
     return latent_vectors
 
 
-def run_all(gen_fp, train_loader, save_fp="data/wgan_latent_dataset.pt"):
+def run_wgan(gen_fp, train_loader, save_fp="data/wgan_latent_dataset.pt"):
     """Iterates through all images in train_loader and performs 
         gradient ascent on each image
     """
@@ -85,11 +85,45 @@ def run_all(gen_fp, train_loader, save_fp="data/wgan_latent_dataset.pt"):
     torch.save(latent_dataset, save_fp)
     print("Saved latent vectors")
 
+
+def run_autoencoder(enc_fp, train_loader, save_fp="data/autoencoder_latent_dataset.pt"):
+    """Iterates through all images in train_loader and encodes each image
+    """
+    # Load model
+    encoder = Encoder(latent_size=100).to(device)
+    encoder.load_state_dict(torch.load(enc_fp))
+
+    # Initialize new latent dataset
+    latent_dataset = data.TensorDataset(torch.zeros(0, 100).to(device))
+
+    # Get images
+    for i, (imgs, _) in enumerate(train_loader):
+        imgs = imgs.to(device)
+
+        # Encode images
+        latent_vectors = encoder(imgs)
+        
+        # Save latent vectors to torch dataset
+        latent_dataset = data.TensorDataset(torch.cat((latent_dataset.tensors[0], latent_vectors), dim=0))
+    # Print size
+    print(latent_dataset.tensors[0].shape)
+
+    # Save latent vectors to file
+    torch.save(latent_dataset, save_fp)
+    print("Saved latent vectors")
+
 if __name__ == "__main__":
     # Load data
     batch_size = 128
     labeling_loader, public_loader, private_loader, test_loader = load_MNIST(batch_size=batch_size)
+    print(len(private_loader.dataset))
+
+    # Run Autoencoder
+    enc_fp = "runs/autoencoder/enc.pth"
+    run_autoencoder(enc_fp, private_loader, "data/autoencoder_latent_dataset.pt")
+
+    exit(0)
 
     gen_fp = "runs/public_16-12_100_32_1_inf_1e-06_0.4_0.005_0.0001_0.5_64_4_300000_LeakyReLU/netG_100000.pt"
 
-    run_all(gen_fp, public_loader, "data/wgan_latent_dataset.pt")
+    run_wgan(gen_fp, public_loader, "data/wgan_latent_dataset.pt")

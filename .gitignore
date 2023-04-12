@@ -4,3 +4,5 @@ runs/**/*
 runs_1/**/*
 runs_gen_fc/**/*
 **/__pycache__/
+runs*
+wgan-gp*

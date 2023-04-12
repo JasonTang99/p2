@@ -74,26 +74,31 @@ def load_latent(batch_size, data_fp="data/wgan_latent_dataset.pt"):
 
 if __name__ == "__main__":
     # Test latent space
-    loader = load_latent(64)
-    print("Latent space dataset size:", len(loader.dataset))
-    print("Latent space sample shape:", next(iter(loader))[0].shape)
+    # loader = load_latent(64)
+    # print("Latent space dataset size:", len(loader.dataset))
+    # print("Latent space sample shape:", next(iter(loader))[0].shape)
 
-    from models import Discriminator_FC, Generator_FC
-    D = Discriminator_FC(hidden_sizes=[16, 16], input_size=100).to(device)
-    G = Generator_FC(nz=32, hidden_sizes=[16, 32], output_size=100).to(device)
+    # from models import Discriminator_FC, Generator_FC
+    # D = Discriminator_FC(hidden_sizes=[16, 16], input_size=100).to(device)
+    # G = Generator_FC(nz=32, hidden_sizes=[16, 32], output_size=100).to(device)
 
-    for i, data in enumerate(loader):
-        print(data[0].shape)
-        print(D(data[0]).shape)
-        noise = torch.randn(64, 32).to(device)
-        print(G(noise).shape)
-        break
+    # for i, data in enumerate(loader):
+    #     print(data[0].shape)
+    #     print(D(data[0]).shape)
+    #     noise = torch.randn(64, 32).to(device)
+    #     print(G(noise).shape)
+    #     break
+
+    labeling_loader, public_loader, private_loader, test_loader = load_MNIST(64)
+    for _ in range(2):
+        for images, labels in public_loader:
+            print(images.shape, labels.shape)
+        
 
     exit(0)
 
 
     # Test MNIST
-    labeling_loader, public_loader, private_loader, test_loader = load_MNIST(64)
 
     # Print sizes of each set
     print("Labeling set size:", len(labeling_loader.dataset))

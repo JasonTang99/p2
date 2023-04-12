@@ -4,7 +4,7 @@ from tqdm import tqdm
 import os
 from time import time
 
-from models import Encoder, Decoder
+from models import Encoder, Decoder, Encoder_Mini, Decoder_Mini
 from data import load_MNIST
 
 import torch
@@ -20,9 +20,8 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def train(enc, dec, train_loader, lr=5e-4, epochs=1000, verbose=True):
+def train(enc, dec, train_loader, lr=5e-4, epochs=1000, run_fp="runs/autoencoder", verbose=True):
     """Training process"""
-    run_fp = "runs/autoencoder"
     os.makedirs(run_fp, exist_ok=True)
 
     # Check if anything inside run_fp exists
@@ -51,6 +50,10 @@ def train(enc, dec, train_loader, lr=5e-4, epochs=1000, verbose=True):
                 # Train with real data
                 optimizer.zero_grad()
                 output = dec(enc(data))
+                # Reshape output and data
+                output = output.view(-1, 28*28)
+                data = data.view(-1, 28*28)
+
                 loss = criterion(output, data)
                 loss.backward()
                 optimizer.step()
@@ -78,6 +81,14 @@ if __name__ == "__main__":
     # Data
     labeling_loader, public_loader, private_loader, test_loader = load_MNIST(batch_size=64)
     train_loader = public_loader
+
+    # Train Mini Models
+    enc = Encoder_Mini(latent_size=100)
+    dec = Decoder_Mini(latent_size=100)
+
+    # Train
+    train(enc, dec, train_loader, lr=5e-4, epochs=1001, run_fp="runs/autoencoder_mini", verbose=True)
+    exit(0)
 
     # Model
     enc = Encoder(latent_size=100)

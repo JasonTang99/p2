@@ -108,7 +108,7 @@ class Generator_FC(nn.Module):
     - hidden_sizes: list of hidden layer sizes
     - output_size: size of the output vector
     """
-    def __init__(self, nz=100, hidden_sizes=[64, 16], output_size=(1, 28, 28)):
+    def __init__(self, hidden_sizes=[64, 16], nz=100, output_size=(1, 28, 28)):
         super(Generator_FC, self).__init__()
         self.nz = nz
         self.output_size = output_size
@@ -123,6 +123,7 @@ class Generator_FC(nn.Module):
                 nn.BatchNorm1d(hidden_sizes[i])
             ] for i in range(1, len(hidden_sizes))])),
             nn.Linear(hidden_sizes[-1], np.prod(output_size)),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -194,6 +195,43 @@ class Decoder(nn.Module):
     def forward(self, x):
         # (batch_size, latent_size) -> (batch_size, 1, 28, 28)
         return self.model(x)
+
+
+class Encoder_Mini(nn.Module):
+    def __init__(self, latent_size=32):
+        super(Encoder_Mini, self).__init__()
+        self.latent_size = latent_size
+        
+        # Linear layers
+        activation = nn.LeakyReLU(0.2, inplace=True)
+        self.model = nn.Sequential(
+            nn.Linear(28*28, 128),
+            activation,
+            nn.Linear(128, self.latent_size)            
+        )
+
+    def forward(self, x):
+        # (batch_size, 1, 28, 28) -> (batch_size, latent_size)
+        x = x.view(-1, 28*28)
+        return self.model(x)
+
+class Decoder_Mini(nn.Module):
+    def __init__(self, latent_size=32):
+        super(Decoder_Mini, self).__init__()
+        self.latent_size = latent_size
+        
+        self.model = nn.Sequential(
+            # Linear layers
+            nn.Linear(self.latent_size, 128),
+            nn.ReLU(True),
+            nn.Linear(128, 28*28),
+            nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        # (batch_size, latent_size) -> (batch_size, 1, 28, 28)
+        x = self.model(x)
+        return x.view(-1, 1, 28, 28)
 
 
 if __name__ == '__main__':

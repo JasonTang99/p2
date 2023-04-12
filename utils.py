@@ -45,10 +45,46 @@ def generate_run_id(args):
         run_id += f"{arg}_"
     return run_id.rstrip("_")
 
+# Inverse of generate_run_id
+def parse_run_id(run_id):
+    # Strip any private_ or public_ prefix
+    if run_id.startswith("private_") or run_id.startswith("public_"):
+        run_id = run_id.split("_", 1)[1]
+    
+    # Parse run id to args (named tuple)
+    args = run_id.split("_")
+    # Convert args[0] to list
+    args[0] = [int(a) for a in args[0].split("-")]
+    
+    float_args = [args[0]]
+    for a in args[1:]:
+        try:
+            if "." in a or "e" in a:
+                float_args.append(float(a))
+            else:
+                float_args.append(int(a))
+        except ValueError:
+            float_args.append(a)
+    args = float_args
+
+    args = Args(
+        hidden=args[0], nz=args[1], ngf=args[2], nc=args[3],
+        epsilon=args[4], delta=args[5], noise_multiplier=args[6],
+        c_p=args[7], lr=args[8], beta1=args[9], batch_size=args[10],
+        n_d=args[11], n_g=args[12], activation=args[13], lambda_gp=args[14]
+    )
+    return args
 
 if __name__ == "__main__":
     # python utils.py --hidden 64 16 --nz 100 --ngf 32 --nc 1 --epsilon 50.0 --delta 1e-6 --noise_multiplier 0.1 --c_p 0.01 --lr 1e-3 --beta1 0.5 --batch_size 32 --n_d 3 --n_g 10000 --activation leaky_relu --lambda_gp 10.0
 
     # Test get_input_args and generate_run_id
     args = get_input_args()
-    print(generate_run_id(args))
+    run_id = generate_run_id(args)
+    print(run_id)
+
+    # Test parse_run_id
+    # run_id = "128_100_32_1_50.0_1e-06_0.1_0.01_0.001_0.5_32_3_10000_leaky_relu_10.0"
+    args = parse_run_id(run_id)
+    print(args)
+    print(args.delta * 100)
