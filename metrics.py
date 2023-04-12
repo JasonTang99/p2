@@ -5,25 +5,22 @@ import os
 import numpy as np
 
 from inception_score_pytorch.inception_score import inception_score
+from data import load_MNIST
 
-
-MNIST_stats_fp = "data/MNIST/stats.npz"
-
-def _get_MNIST_metrics():
+def _get_MNIST_metrics(fp="data/MNIST/stats_private.npz"):
     """Since pytorch-fid requires a folder of images, we temporarily save the
     MNIST dataset to disk and then delete it.
     """
     # Check if stats were already calculated
-    if os.path.exists(MNIST_stats_fp):
+    if os.path.exists(fp):
         print("MNIST stats already exist. Skipping...")
         return
     
     # Load MNIST dataset
-    trainset = torchvision.datasets.MNIST(root='./data', train=True, download=True, transform=transforms.ToTensor())
-    testset = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transforms.ToTensor())
-    # Concatenate train and test set
-    dataset = torch.utils.data.ConcatDataset([trainset, testset])
-    print("Dataset size:", len(dataset))
+    labeling_loader, public_loader, private_loader, test_loader = load_MNIST(64)
+    
+    # Calculate only for Private set
+    dataset = private_loader.dataset
 
     # Create a temporary folder to store the images
     tmp_dir = './tmp'
@@ -35,13 +32,13 @@ def _get_MNIST_metrics():
         torchvision.utils.save_image(img, f"{tmp_dir}/{i}.png")
 
     # Calculate FID
-    os.system(f"python -m pytorch_fid --save-stats {tmp_dir} {MNIST_stats_fp}")
+    os.system(f"python -m pytorch_fid --save-stats {tmp_dir} {fp}")
 
     # Delete temporary folder
     os.system(f"rm -rf {tmp_dir}")
 
 
-def get_FID(imgs):
+def get_FID(imgs, fp="data/MNIST/stats_private.npz"):
     """Wrapper for FID calculation
     imgs: Torch dataset of (3xHxW) numpy images in range [0, 1] (minimum 2048 images)
     """
@@ -54,7 +51,9 @@ def get_FID(imgs):
         torchvision.utils.save_image(img, f"{tmp_dir}/{i}.png")
 
     # Calculate FID
-    fid = os.popen(f"python -m pytorch_fid --device cuda:0 {tmp_dir} {MNIST_stats_fp}").read()
+    print(f"python -m pytorch_fid --device cuda:0 {tmp_dir} {fp}")
+    fid = os.popen(f"python -m pytorch_fid --device cuda:0 {tmp_dir} {fp}").read()
+    print(fid)
     fid = float(fid.split("FID: ")[-1])
 
     # Delete temporary folder
@@ -66,7 +65,6 @@ def get_IS(imgs):
     """Wrapper for Inception Score calculation
     imgs: Torch dataset of (3xHxW) numpy images in range [0, 1]
     """
-
     # normalized to the range [-1, 1]
     imgs = (imgs - 0.5) * 2
 
@@ -81,6 +79,35 @@ def get_IS(imgs):
 
 if __name__ == '__main__':
     _get_MNIST_metrics()
+
+    labeling_loader, public_loader, private_loader, test_loader = load_MNIST(64)
+
+    # Take 2048 images from the public set
+    public_set = public_loader.dataset
+    public_sample = torch.stack([public_set[i][0] for i in range(2048)])
+    fid = get_FID(public_sample, fp="data/MNIST/stats_private.npz")
+    # 141.14
+
+    # Take 2048 images from the private set
+    private_set = private_loader.dataset
+    private_sample = torch.stack([private_set[i][0] for i in range(2048)])
+    fid = get_FID(private_sample, fp="data/MNIST/stats_private.npz")
+    # 62.43
+    
+    # Take 2048 images from the labeling set (both odd and even)
+    labeling_set = labeling_loader.dataset
+    labeling_sample = torch.stack([labeling_set[i][0] for i in range(2048)])
+    fid = get_FID(labeling_sample, fp="data/MNIST/stats_private.npz")
+    # 14.91
+
+    # Take 2048 images from the test set
+    test_set = test_loader.dataset
+    test_sample = torch.stack([test_set[i][0] for i in range(2048)])
+    fid = get_FID(test_sample, fp="data/MNIST/stats_private.npz")
+    # 17.14
+
+    exit(0)
+
 
     # Generate random images
     imgs = torch.rand(2048, 1, 28, 28)

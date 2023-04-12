@@ -68,6 +68,7 @@ def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, d
                     # Standard WGAN loss
                     d_loss = -torch.mean(real_output) + torch.mean(fake_output)
                 else:
+                    print("Using improved WGAN loss")
                     # Improved WGAN-GP loss
                     alpha = torch.rand(real_data.size(0), 1, 1, 1).to(device)
                     alpha = alpha.expand(real_data.size())

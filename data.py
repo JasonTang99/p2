@@ -23,7 +23,9 @@ def load_MNIST(batch_size):
     test_set = torchvision.datasets.MNIST(root='./data', train=False, download=True, transform=transform)
 
     # Check if we need to split
-    if os.path.exists("labeling_set.pt") and os.path.exists("public_set.pt") and os.path.exists("private_set.pt"):
+    if os.path.exists(f"{MNIST_fp}/labeling_set.pt") and \
+        os.path.exists(f"{MNIST_fp}/public_set.pt") and \
+        os.path.exists(f"{MNIST_fp}/private_set.pt"):
         # Load from disk
         print("Loading MNIST splits from disk")
         labeling_set = torch.load(f"{MNIST_fp}/labeling_set.pt")
@@ -64,41 +66,32 @@ def load_MNIST(batch_size):
     return labeling_loader, public_loader, private_loader, test_loader
 
 # Load latent space dataset
-def load_latent(batch_size, data_fp="data/wgan_latent_dataset.pt"):
+def load_latent(batch_size, data_fp="data/ae_enc_latent_dataset.pt"):
     """Load latent space dataset
     """
     dataset = torch.load(data_fp)
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
     return loader
 
-
 if __name__ == "__main__":
     # Test latent space
-    # loader = load_latent(64)
-    # print("Latent space dataset size:", len(loader.dataset))
-    # print("Latent space sample shape:", next(iter(loader))[0].shape)
+    loader = load_latent(64)
+    print("Latent space dataset size:", len(loader.dataset))
+    print("Latent space sample shape:", next(iter(loader))[0].shape)
 
-    # from models import Discriminator_FC, Generator_FC
-    # D = Discriminator_FC(hidden_sizes=[16, 16], input_size=100).to(device)
-    # G = Generator_FC(nz=32, hidden_sizes=[16, 32], output_size=100).to(device)
+    from models import Discriminator_FC, Generator_FC
+    D = Discriminator_FC(hidden_sizes=[96], input_size=100).to(device)
+    G = Generator_FC(nz=64, hidden_sizes=[96], output_size=(100,)).to(device)
 
-    # for i, data in enumerate(loader):
-    #     print(data[0].shape)
-    #     print(D(data[0]).shape)
-    #     noise = torch.randn(64, 32).to(device)
-    #     print(G(noise).shape)
-    #     break
-
-    labeling_loader, public_loader, private_loader, test_loader = load_MNIST(64)
-    for _ in range(2):
-        for images, labels in public_loader:
-            print(images.shape, labels.shape)
-        
-
-    exit(0)
-
+    for i, data in enumerate(loader):
+        print(data[0].shape)
+        print(D(data[0]).shape)
+        noise = torch.randn(17, 64).to(device)
+        print(G(noise).shape)
+        break
 
     # Test MNIST
+    labeling_loader, public_loader, private_loader, test_loader = load_MNIST(64)
 
     # Print sizes of each set
     print("Labeling set size:", len(labeling_loader.dataset))

@@ -47,9 +47,11 @@ def generate_run_id(args):
 
 # Inverse of generate_run_id
 def parse_run_id(run_id):
-    # Strip any private_ or public_ prefix
-    if run_id.startswith("private_") or run_id.startswith("public_"):
-        run_id = run_id.split("_", 1)[1]
+    # Strip any extra prefixs
+    for prefix in ["private_", "public_", "ae-enc_", "ae-grad_", "wgan_"]:
+        if run_id.startswith(prefix):
+            run_id = run_id.split(prefix, 1)[1]
+            break
     
     # Parse run id to args (named tuple)
     args = run_id.split("_")

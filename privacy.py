@@ -22,7 +22,7 @@ def compute_ReLU_bounds(model, c_p, input_size=(784,), input_bounds=1.0, B_sigma
             if skip_first:
                 skip_first = False
             else:
-                sum_mk_mkp1 += W.shape[0] * W.shape[1]
+                sum_mk_mkp1 += (W.shape[0] + 1) * (W.shape[1] + 1)
     
     c_g = 2 * c_p * B_sigma * (B_sigma_p ** 2) * sum_mk_mkp1
     print("B_sigma", B_sigma)
@@ -41,7 +41,7 @@ def compute_Tanh_bounds(model, c_p, input_size=(784,), input_bounds=1.0, B_sigma
             if skip_first:
                 skip_first = False
             else:
-                sum_mk_mkp1 += layer.weight.shape[0] * layer.weight.shape[1]
+                sum_mk_mkp1 += (layer.weight.shape[0] + 1) * (layer.weight.shape[1] + 1)
     
     c_g = 2 * c_p * B_sigma * (B_sigma_p ** 2) * sum_mk_mkp1
     print("B_sigma", B_sigma)
@@ -94,11 +94,11 @@ if __name__ == "__main__":
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     c_p = 0.01
 
-    netD = Discriminator_FC([16, 12], input_size=784).to(device)
-    compute_ReLU_bounds(netD, c_p)
-    compute_empirical_bounds(netD, c_p)
+    netD = Discriminator_FC([96], input_size=100).to(device)
+    compute_ReLU_bounds(netD, c_p, input_size=(100,), input_bounds=1.0, B_sigma_p=1.0)
+    compute_empirical_bounds(netD, c_p, input_size=(1, 100), input_bounds=1.0, B_sigma_p=1.0)
 
-    exit(0)
-    netD = Discriminator_FC([16, 12], input_size=784, activation=nn.Tanh()).to(device)
-    compute_Tanh_bounds(netD, c_p)
+    netD = Discriminator_FC([96], input_size=100, activation=nn.Tanh()).to(device)
+    compute_Tanh_bounds(netD, c_p, input_size=(100,), input_bounds=1.0, B_sigma_p=1.0)
+    compute_empirical_bounds(netD, c_p, input_size=(1, 100), input_bounds=1.0, B_sigma_p=1.0)
 
