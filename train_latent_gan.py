@@ -67,10 +67,13 @@ def main(args, private=True, c_g_mult=1.0, latent_type="ae_enc"):
         c_g = compute_Tanh_bounds(netD, args.c_p, input_size=(100,))
 
     # Use empirical c_g
-    if c_g == 0:
-        emp_c_g = compute_empirical_bounds(netD, args.c_p)
-        c_g = c_g_mult * emp_c_g
-    print("Gradient clip:", c_g)
+    emp_c_g = compute_empirical_bounds(netD, args.c_p, input_size=(100,))
+    # c_g = c_g_mult * emp_c_g
+    print("ReLU Tanh:", c_g)
+    print("Empirical c_g:", emp_c_g)
+    c_g = max(c_g, emp_c_g)
+
+    print("c_g:", c_g)
     
     # Setup optimizers
     weight_decay = 1e-5
@@ -109,26 +112,37 @@ def main(args, private=True, c_g_mult=1.0, latent_type="ae_enc"):
 
 def grid_search():
     # Private model Hyperparameter Search
-    hiddens = [[96], [64]]
-    noise_multipliers = [0.0, 0.1]
+    hiddens = [128, 96, 32]
+    noise_multipliers = [0.0, 0.05]
     activations = ["Tanh", "LeakyReLU", ]
-    n_ds = [3, 5]
-    c_ps = [0.01, 0.02]
+    n_ds = [1, 2, 3, 5]
+    c_ps = [0.001, 0.005, 0.01]
+    lrs = [5e-5, 1e-5, 5e-6]
 
     nz = 64
-    
-    from itertools import product
-    for c_p, hidden, activation, n_d, noise_multiplier in product(
-            c_ps, hiddens, activations, n_ds, noise_multipliers):
+
+    # Randomly choose hyperparameters
+    for i in range(100000):
+        # Select random hyperparameter index
+        hidden = list(np.random.choice(hiddens, 1))
+        noise_multiplier = np.random.choice(noise_multipliers)
+        activation = np.random.choice(activations)
+        n_d = np.random.choice(n_ds)
+        c_p = np.random.choice(c_ps)
+        lr = np.random.choice(lrs)
+
+    # from itertools import product
+    # for c_p, hidden, activation, n_d, noise_multiplier in product(
+    #         c_ps, hiddens, activations, n_ds, noise_multipliers):
         args = Args(
             # Model Parameters
             hidden=hidden, nz=nz, ngf=32, nc=1, activation=activation,
             # Privacy Parameters
             epsilon=50.0, delta=1e-6, noise_multiplier=noise_multiplier, c_p=c_p,
             # Training Parameters
-            lr=5e-5, beta1=0.5, batch_size=64, n_d=n_d, n_g=int(1e5), lambda_gp=0.0
+            lr=lr, beta1=0.5, batch_size=64, n_d=n_d, n_g=int(1e5), lambda_gp=0.0
         )
-        main(args, c_g_mult=1.0, latent_type="ae_enc")
+        main(args, c_g_mult=1.0, latent_type="wgan", private=noise_multiplier > 0)
 
 
 if __name__ == "__main__":

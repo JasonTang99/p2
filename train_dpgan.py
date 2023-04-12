@@ -76,7 +76,7 @@ def train_WGAN(run_fp, args, netD, netG, optimizerD, optimizerG, train_loader, d
     # Track time
     start_time = time()
     print_mod = 10
-    save_mod = 2000
+    save_mod = 4000
     clipper = Weight_Clipper(args.c_p)
     
     lines_to_write = []

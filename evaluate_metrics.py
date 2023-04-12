@@ -50,7 +50,7 @@ def calculate_FIDs_WGAN(args, run_fp, num=10):
     FIDs = []
     for model in models:
         model_fp = os.path.join(run_fp, model)
-        print("Loading {}".format(model))
+        print("Loading {}".format(model_fp))
 
         G = Generator_FC(
             hidden_sizes=args.hidden,
@@ -60,18 +60,26 @@ def calculate_FIDs_WGAN(args, run_fp, num=10):
         G.load_state_dict(torch.load(model_fp))
         G.eval()
 
+        # Sample 4 fake latents
+        # noise = torch.randn(4, args.nz).to(device)
+        # fake = G(noise)
+        # print(fake)
+        # continue
+
         # Generate 2048 fake images
         noise = torch.randn(2048, args.nz).to(device)
         fake = pub_G(G(noise))
         fake = fake.view(fake.size(0), 1, 28, 28)
 
         # Calculate Frechet Inception Distance
-        FID = get_FID(fake)
+        # FID = get_FID(fake)
+        FID = get_IS(fake)
         FIDs.append((model_fp, FID))
         print("Frechet Inception Distance:", FID)
 
     # Return Best model_fp
-    best_model_fp, best_FID = min(FIDs, key=lambda x: x[1])
+    # best_model_fp, best_FID = min(FIDs, key=lambda x: x[1])
+    best_model_fp, best_FID = max(FIDs, key=lambda x: x[1])
 
     return best_model_fp, best_FID
 
@@ -100,7 +108,7 @@ if __name__ == "__main__":
         args = parse_run_id(run_id)
 
         # Calculate FIDs
-        best_model_fp, best_FID = calculate_FIDs_WGAN(args, run_fp, num=3)
+        best_model_fp, best_FID = calculate_FIDs_WGAN(args, run_fp, num=1)
 
         # Save results
         df = df.append({
