@@ -30,9 +30,9 @@ from model_inversion import enc_fp, dec_fp, gen_fp
 # Device Configuration
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-def last_num_models(run_fp, num=10):
+def last_num_models(run_fp, num=10, query="netG"):
     # Filter out non-model files "netG_*.pt"
-    models = [model for model in os.listdir(run_fp) if model.startswith("netG")]
+    models = [model for model in os.listdir(run_fp) if model.startswith(query)]
     models = sorted(models, key=lambda x: int(x.split("_")[-1].split(".")[0]))
     models = models[-num:]
     return models

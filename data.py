@@ -70,7 +70,7 @@ def load_latent(batch_size, data_fp="data/ae_enc_latent_dataset.pt"):
     """Load latent space dataset
     """
     dataset = torch.load(data_fp)
-    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True,)
     return loader
 
 if __name__ == "__main__":
@@ -78,6 +78,10 @@ if __name__ == "__main__":
     loader = load_latent(64)
     print("Latent space dataset size:", len(loader.dataset))
     print("Latent space sample shape:", next(iter(loader))[0].shape)
+
+    # How many batches per epoch?
+    print("Latent space batches per epoch:", len(loader))
+    exit(0)
 
     from models import Discriminator_FC, Generator_FC
     D = Discriminator_FC(hidden_sizes=[96], input_size=100).to(device)

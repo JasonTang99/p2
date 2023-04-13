@@ -52,10 +52,12 @@ def main(args, private=True, c_g_mult=1.0, latent_type="ae_enc"):
     netG = Generator_FC(
         nz=args.nz, 
         hidden_sizes=args.hidden, 
-        output_size=(100,)
+        output_size=(100,),
+        sigmoid=False
     ).to(device)
 
     print(netD)
+    print(netG)
 
     # Privacy Validation
     ModuleValidator.validate(netD, strict=True)
@@ -113,16 +115,18 @@ def main(args, private=True, c_g_mult=1.0, latent_type="ae_enc"):
 def grid_search():
     # Private model Hyperparameter Search
     hiddens = [128, 96, 32]
-    noise_multipliers = [0.0, 0.05]
+    noise_multipliers = [0.0, 0.0, 0.05]
     activations = ["Tanh", "LeakyReLU", ]
-    n_ds = [1, 2, 3, 5]
+    n_ds = [1, 2, 3]
     c_ps = [0.001, 0.005, 0.01]
     lrs = [5e-5, 1e-5, 5e-6]
 
     nz = 64
+    latent_types = ["ae_enc", "ae_grad", "wgan"]
 
     # Randomly choose hyperparameters
-    for i in range(100000):
+    for i in range(1000000):
+        np.random.seed(i)
         # Select random hyperparameter index
         hidden = list(np.random.choice(hiddens, 1))
         noise_multiplier = np.random.choice(noise_multipliers)
@@ -130,6 +134,8 @@ def grid_search():
         n_d = np.random.choice(n_ds)
         c_p = np.random.choice(c_ps)
         lr = np.random.choice(lrs)
+
+        latent_type = np.random.choice(latent_types)
 
     # from itertools import product
     # for c_p, hidden, activation, n_d, noise_multiplier in product(
@@ -140,9 +146,9 @@ def grid_search():
             # Privacy Parameters
             epsilon=50.0, delta=1e-6, noise_multiplier=noise_multiplier, c_p=c_p,
             # Training Parameters
-            lr=lr, beta1=0.5, batch_size=64, n_d=n_d, n_g=int(1e5), lambda_gp=0.0
+            lr=lr, beta1=0.5, batch_size=64, n_d=n_d, n_g=48000, lambda_gp=0.0
         )
-        main(args, c_g_mult=1.0, latent_type="wgan", private=noise_multiplier > 0)
+        main(args, c_g_mult=1.0, latent_type=latent_type, private=noise_multiplier > 0)
 
 
 if __name__ == "__main__":

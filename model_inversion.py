@@ -202,6 +202,7 @@ def run_ae(enc_fp, train_loader, save_fp="data/ae_enc_latent_dataset.pt"):
     torch.save(latent_dataset, save_fp)
     print(f"Saved {latent_dataset.tensors[0].shape[0]} latent vectors")
 
+# Export the models used for latent computations
 enc_fp = "runs/autoencoder_mini/enc.pth"
 dec_fp = "runs/autoencoder_mini/dec.pth"
 gen_fp = "runs_gen_fc_3/public_256_100_32_1_inf_1e-06_0.0_0.01_5e-05_0.0_64_3_500000_LeakyReLU_0.0/netG_470000.pt"

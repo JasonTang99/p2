@@ -108,7 +108,7 @@ class Generator_FC(nn.Module):
     - hidden_sizes: list of hidden layer sizes
     - output_size: size of the output vector
     """
-    def __init__(self, hidden_sizes=[64, 16], nz=100, output_size=(1, 28, 28)):
+    def __init__(self, hidden_sizes=[64, 16], nz=100, output_size=(1, 28, 28), sigmoid=True):
         super(Generator_FC, self).__init__()
         self.nz = nz
         self.output_size = output_size
@@ -123,7 +123,7 @@ class Generator_FC(nn.Module):
                 nn.BatchNorm1d(hidden_sizes[i])
             ] for i in range(1, len(hidden_sizes))])),
             nn.Linear(hidden_sizes[-1], np.prod(output_size)),
-            nn.Sigmoid()
+            nn.Sigmoid() if sigmoid else nn.Identity()
         )
 
     def forward(self, x):
@@ -233,8 +233,80 @@ class Decoder_Mini(nn.Module):
         x = self.model(x)
         return x.view(-1, 1, 28, 28)
 
+# VAE version of Encoder_Mini and Decoder_Mini
+class Encoder_VAE(nn.Module):
+    def __init__(self, hidden_sizes=[128], input_size=100, latent_size=32, activation = nn.LeakyReLU(0.2, inplace=True)):
+        super(Encoder_VAE, self).__init__()
+        self.input_size = input_size
+        self.latent_size = latent_size
+        
+        # Linear layers
+        self.model = nn.Sequential(
+            nn.Linear(self.input_size, hidden_sizes[0]),
+            activation,
+            nn.Linear(hidden_sizes[0], 2*self.latent_size)            
+        )
+        
+    def forward(self, x):
+        # (batch_size, input_size) -> 2 x (batch_size, latent_size)
+        x = self.model(x)
+        return x[:, :self.latent_size], x[:, self.latent_size:]
+
+class Decoder_VAE(nn.Module):
+    def __init__(self, hidden_sizes=[128], output_size=100, latent_size=32, activation = nn.LeakyReLU(0.2, inplace=True)):
+        super(Decoder_VAE, self).__init__()
+        self.output_size = output_size
+        self.latent_size = latent_size
+        
+        # Linear layers
+        self.model = nn.Sequential(
+            nn.Linear(self.latent_size, hidden_sizes[0]),
+            activation,
+            nn.Linear(hidden_sizes[0], self.output_size),
+        )
+
+    def forward(self, x):
+        # (batch_size, latent_size) -> (batch_size, output_size)
+        x = self.model(x)
+        return x.view(-1, self.output_size)
+
+class VAE(nn.Module):
+    def __init__(self, encoder, decoder):
+        super(VAE, self).__init__()
+        self.encoder = encoder
+        self.decoder = decoder
+
+    def reparameterize(self, mu, std):
+        eps = torch.randn_like(std)
+        return mu + eps*std
+
+    def forward(self, x):
+        # (batch_size, input_size) -> (batch_size, output_size)
+        mu, logvar = self.encoder(x)
+        std = torch.exp(0.5*logvar)
+
+        z = self.reparameterize(mu, std)
+        return self.decoder(z), mu, logvar, std
+
+
 
 if __name__ == '__main__':
+    enc = Encoder_VAE()
+    dec = Decoder_VAE()
+    vae = VAE(enc, dec)
+
+    # List of parameter shapes
+    print("Encoder parameters:")
+    for param in vae.parameters():
+        print(param.shape)
+
+    from opacus.validators import ModuleValidator
+    errors = ModuleValidator.validate(vae, strict=True)
+    print("Errors:", errors)
+
+    exit(0)
+
+
     # test discriminator mnist
     D = Discriminator_MNIST(ndf=16, nc=1).to(device)
     x = torch.randn(16, 1, 28, 28).to(device)
