@@ -85,18 +85,18 @@ def train_vae(args, vae, train_loader, run_fp="runs_vae/test", kld_weight=0.0005
             loss.backward()
             optimizer.step()
             
-            # print(f"{i}, {loss.item()}", file=f)
+            print(f"{i}, {loss.item()}", file=f)
             
             if (i+1) % 200 == 0:
-                # torch.save(vae._module.state_dict(), f"{run_fp}/vae_{i+1}.pt")
-                # torch.save(privacy_engine.accountant, f"{run_fp}/accountant_{i+1}.pt")
+                torch.save(vae._module.state_dict(), f"{run_fp}/vae_{i+1}.pt")
+                torch.save(privacy_engine.accountant, f"{run_fp}/accountant_{i+1}.pt")
                 
-                f.flush()
-                if i < 10000 and eps < 300:
-                    # Print epsilon every 200 iterations
-                    eps = privacy_engine.get_epsilon(1e-6)
-                    print(f"Epsilon {i+1} {eps}", file=f)
-                    print(f"Epsilon {i+1} {eps}")
+                # f.flush()
+                # if i < 10000 and eps < 300:
+                #     # Print epsilon every 200 iterations
+                #     eps = privacy_engine.get_epsilon(1e-6)
+                #     print(f"Epsilon {i+1} {eps}", file=f)
+                #     print(f"Epsilon {i+1} {eps}")
 
     print(f"Training took {time() - start_time} seconds")
 
@@ -146,10 +146,12 @@ def main(args, private=True, latent_type="ae_enc"):
     else:
         raise ValueError("Latent type not supported")
 
-    run_fp = os.path.join('runs_vae_eps/', run_id)
+    run_fp = os.path.join('runs_vae/', run_id)
+    # run_fp = os.path.join('runs_vae_eps/', run_id)
     os.makedirs(run_fp, exist_ok=True)
 
     print(f"================= Run ID: {run_id} =================")
+    print(args.noise_multiplier, args.c_p)
     
     verbose = False
     train_vae(args, vae, train_loader, run_fp=run_fp, verbose=verbose)
@@ -158,39 +160,10 @@ def main(args, private=True, latent_type="ae_enc"):
 def grid_search():
     # Private model Hyperparameter Search
     hiddens = [64]
-    noise_multipliers = [0.2, 0.3, 0.4, 0.5] # [0.01, 0.05, 0.1]
-    activations = ["LeakyReLU",]
-    c_ps = [0.1] # [0.05, 0.01, 0.005, 0.001]
-    lrs = [0.01] #  0.005]
-
-    nz = 32
-    n_d = 0
-    n_g = 10000
-    batch_size = 64
-    
-    for activation, c_p, noise_multiplier, lr in product(
-            activations, c_ps, noise_multipliers, lrs):
-        args = Args(
-            # Model Parameters
-            hidden=[64], nz=32, ngf=32, nc=1, activation=activation,
-            # Privacy Parameters
-            epsilon=50.0, delta=1e-6, noise_multiplier=noise_multiplier, c_p=c_p,
-            # Training Parameters
-            lr=lr, beta1=0.5, batch_size=batch_size, n_d=0, n_g=n_g, lambda_gp=0.0
-        )
-        # main(args, latent_type="ae_enc")
-        main(args, latent_type="ae_grad")
-    
-    exit(0)
-
-
-
-    # Private model Hyperparameter Search
-    hiddens = [64]
-    noise_multipliers = [0.2, 0.3, 0.4, 0.5] # [0.01, 0.05, 0.1]
+    noise_multipliers = [0.3, 0.4, 0.5, 0.6] # [0.01, 0.05, 0.1]
     activations = ["LeakyReLU", "Tanh", ]
-    c_ps = [0.5, 0.25, 0.1] # [0.05, 0.01, 0.005, 0.001]
-    lrs = [0.01] #  0.005]
+    c_ps = [0.5, 0.25, 0.1, 0.05] # [0.05, 0.01, 0.005, 0.001]
+    lrs = [0.01, 0.02] #  0.005]
 
     nz = 32
     n_d = 0
@@ -228,6 +201,35 @@ def grid_search():
     #     # main(args, latent_type="ae_enc")
     #     main(args, latent_type="ae_grad")
 
+def calculate_epsilons():
+    # Private model parameters
+    hiddens = [64]
+    noise_multipliers = [0.2, 0.3, 0.4, 0.5, 0.6] # epsilon only changes with noise multiplier
+    activations = ["LeakyReLU",]
+    c_ps = [0.1] 
+    lrs = [0.01] 
+
+    nz = 32
+    n_d = 0
+    n_g = 10000
+    batch_size = 64
+    
+    for activation, c_p, noise_multiplier, lr in product(
+            activations, c_ps, noise_multipliers, lrs):
+        args = Args(
+            # Model Parameters
+            hidden=[64], nz=32, ngf=32, nc=1, activation=activation,
+            # Privacy Parameters
+            epsilon=50.0, delta=1e-6, noise_multiplier=noise_multiplier, c_p=c_p,
+            # Training Parameters
+            lr=lr, beta1=0.5, batch_size=batch_size, n_d=0, n_g=n_g, lambda_gp=0.0
+        )
+        main(args, latent_type="ae_grad")
+    
 
 if __name__ == "__main__":
+    # calculate_epsilons()
+    # exit(0)
     grid_search()
+
+    
