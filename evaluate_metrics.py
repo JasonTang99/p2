@@ -22,7 +22,7 @@ from opacus import PrivacyEngine
 from opacus.validators import ModuleValidator
 
 from utils import generate_run_id, get_input_args, Args, parse_run_id
-from models import Discriminator_FC, Generator_MNIST, Weight_Clipper, G_weights_init, Generator_FC
+from models import Discriminator_FC, Generator_MNIST, Weight_Clipper, G_weights_init, Generator_FC, Decoder_Mini, Encoder_VAE, Decoder_VAE, VAE
 from data import load_MNIST
 from metrics import get_IS, get_FID
 from model_inversion import enc_fp, dec_fp, gen_fp
@@ -38,7 +38,7 @@ def last_num_models(run_fp, num=10, query="netG"):
     return models
 
 # Calculate FIDs of last 10 models for latent GAN using WGAN
-def calculate_FIDs_WGAN(args, run_fp, num=10):
+def calculate_FIDs_WGAN(args, run_fp):
     # Load Public WGAN Generator
     pub_G = Generator_FC(hidden_sizes=[256], nz=100).to(device)
     pub_G.load_state_dict(torch.load(gen_fp))
@@ -60,12 +60,6 @@ def calculate_FIDs_WGAN(args, run_fp, num=10):
         G.load_state_dict(torch.load(model_fp))
         G.eval()
 
-        # Sample 4 fake latents
-        # noise = torch.randn(4, args.nz).to(device)
-        # fake = G(noise)
-        # print(fake)
-        # continue
-
         # Generate 2048 fake images
         noise = torch.randn(2048, args.nz).to(device)
         fake = pub_G(G(noise))
@@ -83,46 +77,88 @@ def calculate_FIDs_WGAN(args, run_fp, num=10):
 
     return best_model_fp, best_FID
 
+def calculate_AE(args, run_fp):
+    # Load Public Decoder
+    pub_Dec = Decoder_Mini(latent_size=100).to(device)
+    pub_Dec.load_state_dict(torch.load(dec_fp))
+
+    # Consider final model
+    model = last_num_models(run_fp, num=1, query="vae")[0]
+    gen_fp = os.path.join(run_fp, model)
+    print("Loading {}".format(gen_fp))
+
+    vae = VAE(
+        Encoder_VAE(args.hidden, latent_size=args.nz), 
+        Decoder_VAE(args.hidden, latent_size=args.nz)
+    ).to(device)
+    vae.load_state_dict(torch.load(gen_fp))
+    vae.eval()
+
+    G = vae.decoder
+    G.eval()
+
+    # Generate 2048 fake images
+    noise = torch.randn(2048, args.nz).to(device)
+    fake = pub_Dec(G(noise))
+    fake = fake.view(fake.size(0), 1, 28, 28)
+
+    # Calculate IS
+    FID = get_FID(fake)
+    # IS = get_IS(fake)
+
+    return FID
+
+
 
 if __name__ == "__main__":
-    # run_id = "/home/jason/p2/runs_gen_fc_3/public_128_100_32_1_inf_1e-06_0.0_0.01_5e-05_0.0_64_3_500000_LeakyReLU_0.0"
-    # run_id = "/home/jason/p2/runs_gen_fc_3/public_256_100_32_1_inf_1e-06_0.0_0.01_5e-05_0.0_64_3_500000_LeakyReLU_0.0"
-    
-    
-    # run_id = "runs_latent/ae-enc_64_64_32_1_50.0_1e-06_0.0_0.01_5e-05_0.5_64_3_100000_LeakyReLU_0.0"
-    
     # Save results to a pandas dataframe
     # Cols:     hiddens = [[96], [64]]
     # noise_multipliers = [0.0, 0.1]
     # activations = ["Tanh", "LeakyReLU", ]
     # n_ds = [3, 5]
     # c_ps = [0.01, 0.02]
+
     df = pd.DataFrame(columns=[
-        "hiddens", "noise_multiplier", "activation", 
-        "n_d", "c_p", "FID", "model_fp"
+        "hidden", "noise_multiplier", "activation", 
+        "n_g", "c_p", "lr", "IS", "latent_type", "model_fp"
     ])
 
-    folder = "runs_latent"
-    for run_id in os.listdir(folder):
+    folder = "runs_vae"
+    valid_runs_ids = []
+    for run_id in os.listdir("runs_vae"):
+        run_fp = f"runs_vae/{run_id}"
+        args = parse_run_id(run_id)
+        if run_id.startswith("ae-grad") and \
+                args.noise_multiplier > 0 and \
+                args.n_g > 20000 and \
+                args.n_g <= 50000:
+            valid_runs_ids.append(run_id)
+    valid_runs_ids = sorted(valid_runs_ids)
+
+    # Iterate over all runs
+    for run_id in tqdm(valid_runs_ids):
         run_fp = os.path.join(folder, run_id)
         args = parse_run_id(run_id)
+        print(args.noise_multiplier, args.c_p)
 
-        # Calculate FIDs
-        best_model_fp, best_FID = calculate_FIDs_WGAN(args, run_fp, num=1)
+        # Calculate FID
+        FID = calculate_AE(args, run_fp)
 
         # Save results
         df = df.append({
-            "hiddens": args.hidden,
+            "hidden": args.hidden,
             "noise_multiplier": args.noise_multiplier,
             "activation": args.activation,
-            "n_d": args.n_d,
+            "n_g": args.n_g,
             "c_p": args.c_p,
-            "FID": best_FID,
-            "model_fp": best_model_fp
+            "lr": args.lr,
+            "FID": FID,
+            "latent_type": "ae-grad",
+            "model_fp": run_fp
         }, ignore_index=True)
 
     # Save results
-    df.to_csv("latent_results.csv", index=False)
+    df.to_csv("vae_FID.csv", index=False)
 
     # Print results
     print(df)

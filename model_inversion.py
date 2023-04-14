@@ -69,7 +69,7 @@ def projected_gradient_ascent(model, imgs, latent_dim, start_lr=1.0, iterations=
                 start_lr /= 2
                 if start_lr < 1:
                     break
-            prev_loss = loss.item()
+            prev_loss = loss
         
 
         if i % 10000 == 0:
@@ -115,7 +115,7 @@ def gradient_ascent(model, imgs, latent_dim, start_lr=10, iterations=1000, laten
                     break
                 for param_group in optimizer.param_groups:
                     param_group['lr'] = start_lr
-            prev_loss = loss.item().detach()
+            prev_loss = loss
         
         if i % 10000 == 0:
             print(f"Loss: {loss.item()}")
