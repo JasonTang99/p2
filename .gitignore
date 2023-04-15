@@ -1,5 +1,4 @@
 *.pth
-*.pt
 runs/**/*
 runs_1/**/*
 runs_gen_fc/**/*

@@ -78,6 +78,7 @@ def parse_run_id(run_id):
     return args
 
 if __name__ == "__main__":
+    # Run this as a test:
     # python utils.py --hidden 64 16 --nz 100 --ngf 32 --nc 1 --epsilon 50.0 --delta 1e-6 --noise_multiplier 0.1 --c_p 0.01 --lr 1e-3 --beta1 0.5 --batch_size 32 --n_d 3 --n_g 10000 --activation leaky_relu --lambda_gp 10.0
 
     # Test get_input_args and generate_run_id

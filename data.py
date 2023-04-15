@@ -79,10 +79,6 @@ if __name__ == "__main__":
     print("Latent space dataset size:", len(loader.dataset))
     print("Latent space sample shape:", next(iter(loader))[0].shape)
 
-    # How many batches per epoch?
-    print("Latent space batches per epoch:", len(loader))
-    exit(0)
-
     from models import Discriminator_FC, Generator_FC
     D = Discriminator_FC(hidden_sizes=[96], input_size=100).to(device)
     G = Generator_FC(nz=64, hidden_sizes=[96], output_size=(100,)).to(device)

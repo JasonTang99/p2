@@ -115,7 +115,7 @@ def main(args, private=True, c_g_mult=1.0, latent_type="ae_enc"):
 def grid_search():
     # Private model Hyperparameter Search
     hiddens = [128, 96, 32]
-    noise_multipliers = [0.0, 0.0, 0.05]
+    noise_multipliers = [0.0, 0.05]
     activations = ["Tanh", "LeakyReLU", ]
     n_ds = [1, 2, 3]
     c_ps = [0.001, 0.005, 0.01]
@@ -137,9 +137,6 @@ def grid_search():
 
         latent_type = np.random.choice(latent_types)
 
-    # from itertools import product
-    # for c_p, hidden, activation, n_d, noise_multiplier in product(
-    #         c_ps, hiddens, activations, n_ds, noise_multipliers):
         args = Args(
             # Model Parameters
             hidden=hidden, nz=nz, ngf=32, nc=1, activation=activation,
