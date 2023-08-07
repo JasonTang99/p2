@@ -1,14 +1,41 @@
-# 2412_project
-Exploring Pretrained Feature Extractors for Differentially Private Generative Modeling
+# Differential Privacy Generative Models for Synthetic Data Generation
+# Exploring Pretrained Feature Extractors for Differentially Private Generative Modeling
 
-## Experiment Results
-[Google Drive Link](https://drive.google.com/file/d/1nR0wDjarNUtH99o7XbLVs1exvMhBTxh9/view?usp=share_link)
+## Summary
+This project explores the use of autoencoders and Variational Autoencoders (VAEs) as alternatives to Generative Adversarial Networks (GANs) in the [Differential Privacy for Model Inversion (DPMI)](https://arxiv.org/abs/2201.03139) framework presented by Chen et al. The aim is to generate synthetic data for privacy-preserving applications with improved stability and simplicity compared to GANs. Experiments compare the performance of these models in terms of stability, privacy, and utility, using metrics like Inception Score (IS) and Fréchet Inception Distance (FID). The results suggest that autoencoders and VAEs offer promising alternatives to GANs in scenarios where GANs are challenging to train.
+
+<!-- Image of report/images/setup.png -->
+![Alt text](report/images/setup.png?raw=true "Setup")
+
+## Experiments
+We utilize [PyTorch](https://pytorch.org/) and [Opacus](https://opacus.ai/) for implementation and privacy accounting, and the [MNIST dataset](https://www.kaggle.com/datasets/hojjatk/mnist-dataset) to explore multiple variations of the DPMI framework. The experiments compare autoencoders, VAEs, and GANs with a focus on stability, privacy, and utility metrics. We also evaluate the impact of different latent extraction methods, activation functions, and gradient norm clipping values.
+
+<!-- Generated Data -->
+#### Generations at different epsilons
+![Alt text](report/images/generated_data.png?raw=true "Generated Data")
+<!-- public_gan_training -->
+#### GAN Mode Collapse
+![Alt text](report/images/public_gan_training.png?raw=true "Public GAN Training")
+<!-- during_train_inf -->
+#### Latent Extraction
+![Alt text](report/images/during_train_inf.png?raw=true "Latent Extraction")
+
+## Results
+Our results showed that autoencoders and VAEs can potentially be viable alternatives to GANs in the DPMI framework, providing simplicity and stability in generating synthetic data for privacy-preserving applications, especially in applications where there is insufficient data or resources to train the GANs required in vanilla DPMI. 
+
+<!-- activation -->
+#### Activation Functions
+![Alt text](report/images/activation.png?raw=true "Activation Functions")
+<!-- c_p -->
+#### Gradient Norm Clipping
+![Alt text](report/images/c_p.png?raw=true "Gradient Norm Clipping")
 
 
 ## Metric Implmentations
 Uses [inception-score-pytorch](https://github.com/sbarratt/inception-score-pytorch), and [pytorch-fid](https://github.com/mseitzer/pytorch-fid) for metric evaluation. 
 
 ## Setup
+Experiment Results: [Google Drive Link](https://drive.google.com/file/d/1nR0wDjarNUtH99o7XbLVs1exvMhBTxh9/view?usp=share_link)
 
 Install pip packages in [requirements.txt](requirements.txt), download runs from Google Drive, unzip and move all ```runs_*``` folders from ```archive/``` into the local directory.
 

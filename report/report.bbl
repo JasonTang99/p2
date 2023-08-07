@@ -1,0 +1,124 @@
+\begin{thebibliography}{10}
+
+\bibitem{dpsgd}
+M.~Abadi, A.~Chu, I.~J. Goodfellow, H.~B. McMahan, I.~Mironov, K.~Talwar, and
+  L.~Zhang.
+\newblock Deep learning with differential privacy.
+\newblock {\em Proceedings of the 2016 ACM SIGSAC Conference on Computer and
+  Communications Security}, 2016.
+
+\bibitem{wgan}
+M.~Arjovsky, S.~Chintala, and L.~Bottou.
+\newblock Wasserstein gan.
+\newblock {\em ArXiv}, abs/1701.07875, 2017.
+
+\bibitem{dpmi}
+D.~Chen, S.-C.~S. Cheung, C.-N. Chuah, and S.~Ozonoff.
+\newblock Differentially private generative adversarial networks with model
+  inversion.
+\newblock {\em 2021 IEEE International Workshop on Information Forensics and
+  Security (WIFS)}, pages 1--6, 2021.
+
+\bibitem{dp_gen}
+Q.~Chen, C.~Xiang, M.~Xue, B.~Li, N.~Borisov, D.~Kaafar, and H.~Zhu.
+\newblock Differentially private data generative models.
+\newblock {\em ArXiv}, abs/1812.02274, 2018.
+
+\bibitem{gan}
+I.~J. Goodfellow, J.~Pouget-Abadie, M.~Mirza, B.~Xu, D.~Warde-Farley, S.~Ozair,
+  A.~Courville, and Y.~Bengio.
+\newblock Generative adversarial networks, 2014.
+
+\bibitem{improved_wgan}
+I.~Gulrajani, F.~Ahmed, M.~Arjovsky, V.~Dumoulin, and A.~C. Courville.
+\newblock Improved training of wasserstein gans.
+\newblock In {\em NIPS}, 2017.
+
+\bibitem{FID}
+M.~Heusel, H.~Ramsauer, T.~Unterthiner, B.~Nessler, and S.~Hochreiter.
+\newblock Gans trained by a two time-scale update rule converge to a local nash
+  equilibrium, 2018.
+
+\bibitem{collab_attack}
+B.~Hitaj, G.~Ateniese, and F.~Perez-Cruz.
+\newblock Deep models under the gan: Information leakage from collaborative
+  deep learning, 2017.
+
+\bibitem{vae}
+D.~P. Kingma and M.~Welling.
+\newblock Auto-encoding variational bayes, 2022.
+
+\bibitem{2nd_order}
+H.~Mehta, W.~Krichene, A.~Thakurta, A.~Kurakin, and A.~Cutkosky.
+\newblock Differentially private image classification from features.
+\newblock {\em ArXiv}, abs/2211.13403, 2022.
+
+\bibitem{transfer}
+H.~Mehta, A.~Thakurta, A.~Kurakin, and A.~Cutkosky.
+\newblock Large scale transfer learning for differentially private image
+  classification.
+\newblock {\em ArXiv}, abs/2205.02973, 2022.
+
+\bibitem{stable_gan}
+B.~Neyshabur, S.~Bhojanapalli, and A.~Chakrabarti.
+\newblock Stabilizing gan training with multiple random projections.
+\newblock {\em ArXiv}, abs/1705.07831, 2017.
+
+\bibitem{scatter}
+E.~Oyallon and S.~Mallat.
+\newblock Deep roto-translation scattering for object classification.
+\newblock {\em 2015 IEEE Conference on Computer Vision and Pattern Recognition
+  (CVPR)}, pages 2865--2873, 2014.
+
+\bibitem{pate}
+N.~Papernot, M.~Abadi, {\'U}.~Erlingsson, I.~J. Goodfellow, and K.~Talwar.
+\newblock Semi-supervised knowledge transfer for deep learning from private
+  training data.
+\newblock {\em ArXiv}, abs/1610.05755, 2016.
+
+\bibitem{sig}
+N.~Papernot, A.~Thakurta, S.~Song, S.~Chien, and {\'U}.~Erlingsson.
+\newblock Tempered sigmoid activations for deep learning with differential
+  privacy.
+\newblock In {\em AAAI Conference on Artificial Intelligence}, 2020.
+
+\bibitem{mi_attack_gan}
+C.~Park, Y.~Kim, J.-G. Park, D.~Hong, and C.~Seo.
+\newblock Evaluating differentially private generative adversarial networks
+  over membership inference attack.
+\newblock {\em IEEE Access}, 9:167412--167425, 2021.
+
+\bibitem{IS}
+T.~Salimans, I.~Goodfellow, W.~Zaremba, V.~Cheung, A.~Radford, and X.~Chen.
+\newblock Improved techniques for training gans, 2016.
+
+\bibitem{collab}
+R.~Shokri and V.~Shmatikov.
+\newblock Privacy-preserving deep learning.
+\newblock In {\em Proceedings of the 22nd ACM SIGSAC conference on computer and
+  communications security}, pages 1310--1321, 2015.
+
+\bibitem{mi_attack}
+R.~Shokri, M.~Stronati, C.~Song, and V.~Shmatikov.
+\newblock Membership inference attacks against machine learning models.
+\newblock {\em 2017 IEEE Symposium on Security and Privacy (SP)}, pages 3--18,
+  2016.
+
+\bibitem{features}
+F.~Tram{\`e}r and D.~Boneh.
+\newblock Differentially private learning needs better features (or much more
+  data).
+\newblock {\em ArXiv}, abs/2011.11660, 2020.
+
+\bibitem{dpgan}
+L.~Xie, K.~Lin, S.~Wang, F.~Wang, and J.~Zhou.
+\newblock Differentially private generative adversarial network.
+\newblock {\em ArXiv}, abs/1802.06739, 2018.
+
+\bibitem{opacus}
+A.~Yousefpour, I.~Shilov, A.~Sablayrolles, D.~Testuggine, K.~Prasad, M.~Malek,
+  J.~Nguyen, S.~Ghosh, A.~Bharadwaj, J.~Zhao, G.~Cormode, and I.~Mironov.
+\newblock Opacus: {U}ser-friendly differential privacy library in {PyTorch}.
+\newblock {\em arXiv preprint arXiv:2109.12298}, 2021.
+
+\end{thebibliography}
