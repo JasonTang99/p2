@@ -1,5 +1,6 @@
-# Differential Privacy Generative Models for Synthetic Data Generation
 # Exploring Pretrained Feature Extractors for Differentially Private Generative Modeling
+
+For a more detailed description of the project, please see the [final report](report/report.pdf).
 
 ## Summary
 This project explores the use of autoencoders and Variational Autoencoders (VAEs) as alternatives to Generative Adversarial Networks (GANs) in the [Differential Privacy for Model Inversion (DPMI)](https://arxiv.org/abs/2201.03139) framework presented by Chen et al. The aim is to generate synthetic data for privacy-preserving applications with improved stability and simplicity compared to GANs. Experiments compare the performance of these models in terms of stability, privacy, and utility, using metrics like Inception Score (IS) and Fréchet Inception Distance (FID). The results suggest that autoencoders and VAEs offer promising alternatives to GANs in scenarios where GANs are challenging to train.
@@ -35,7 +36,7 @@ Our results showed that autoencoders and VAEs can potentially be viable alternat
 Uses [inception-score-pytorch](https://github.com/sbarratt/inception-score-pytorch), and [pytorch-fid](https://github.com/mseitzer/pytorch-fid) for metric evaluation. 
 
 ## Setup
-Experiment Results: [Google Drive Link](https://drive.google.com/file/d/1nR0wDjarNUtH99o7XbLVs1exvMhBTxh9/view?usp=share_link)
+Experiment Results: [Google Drive Link](https://drive.google.com/file/d/1esmQm1gU3tqJppAE56oRRpXia4CMu4Sc/view?usp=sharing)
 
 Install pip packages in [requirements.txt](requirements.txt), download runs from Google Drive, unzip and move all ```runs_*``` folders from ```archive/``` into the local directory.
 
