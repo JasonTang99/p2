@@ -3,13 +3,13 @@
 For a more detailed description of the project, please see the [final report](report/report.pdf).
 
 ## Summary
-This project explores the use of autoencoders and Variational Autoencoders (VAEs) as alternatives to Generative Adversarial Networks (GANs) in the [Differential Privacy for Model Inversion (DPMI)](https://arxiv.org/abs/2201.03139) framework presented by Chen et al. The aim is to generate synthetic data for privacy-preserving applications with improved stability and simplicity compared to GANs. Experiments compare the performance of these models in terms of stability, privacy, and utility, using metrics like Inception Score (IS) and Fréchet Inception Distance (FID). The results suggest that autoencoders and VAEs offer promising alternatives to GANs in scenarios where GANs are challenging to train.
+This project explores the use of autoencoders and Variational Autoencoders (VAEs) as alternatives to Generative Adversarial Networks (GANs) in the [Differential Privacy for Model Inversion (DPMI)](https://arxiv.org/abs/2201.03139) framework presented by Chen et al. The aim is to generate synthetic data for privacy-preserving applications with improved stability and simplicity compared to GANs. We conduted comprehensive experiments that assess the performance of these models across stability, privacy, and utility aspects, employing metrics like Inception Score (IS) and Fréchet Inception Distance (FID). The findings suggest that autoencoders and VAEs present promising alternatives to GANs, particularly in scenarios where training GANs poses challenges.
 
 <!-- Image of report/images/setup.png -->
 ![Alt text](report/images/setup.png?raw=true "Setup")
 
 ## Experiments
-We utilize [PyTorch](https://pytorch.org/) and [Opacus](https://opacus.ai/) for implementation and privacy accounting, and the [MNIST dataset](https://www.kaggle.com/datasets/hojjatk/mnist-dataset) to explore multiple variations of the DPMI framework. The experiments compare autoencoders, VAEs, and GANs with a focus on stability, privacy, and utility metrics. We also evaluate the impact of different latent extraction methods, activation functions, and gradient norm clipping values.
+We utilize [PyTorch](https://pytorch.org/) and [Opacus](https://opacus.ai/) for implementation and privacy accounting, and the [MNIST dataset](https://www.kaggle.com/datasets/hojjatk/mnist-dataset) to explore multiple variations of the DPMI framework. The experiments compare autoencoders, VAEs, and GANs with a focus on stability, privacy, and utility metrics. The study also delves into the influence of different latent extraction techniques, activation functions, and gradient norm clipping values.
 
 <!-- Generated Data -->
 #### Generations at different epsilons
@@ -22,7 +22,7 @@ We utilize [PyTorch](https://pytorch.org/) and [Opacus](https://opacus.ai/) for 
 ![Alt text](report/images/during_train_inf.png?raw=true "Latent Extraction")
 
 ## Results
-Our results showed that autoencoders and VAEs can potentially be viable alternatives to GANs in the DPMI framework, providing simplicity and stability in generating synthetic data for privacy-preserving applications, especially in applications where there is insufficient data or resources to train the GANs required in vanilla DPMI. 
+The project's results underscore the potential viability of autoencoders and VAEs as substitutes for GANs within the DPMI framework. These alternatives exhibit simplicity and stability in generating synthetic data for privacy-preserving applications, particularly when faced with inadequate data or resource availability that poses challenges for training GANs in conventional DPMI scenarios.
 
 <!-- activation -->
 #### Activation Functions
@@ -31,7 +31,7 @@ Our results showed that autoencoders and VAEs can potentially be viable alternat
 #### Gradient Norm Clipping
 ![Alt text](report/images/c_p.png?raw=true "Gradient Norm Clipping")
 
-
+<!-- #################################################### -->
 ## Metric Implmentations
 Uses [inception-score-pytorch](https://github.com/sbarratt/inception-score-pytorch), and [pytorch-fid](https://github.com/mseitzer/pytorch-fid) for metric evaluation. 
 
